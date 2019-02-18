@@ -1,0 +1,17 @@
+__pycache__/
+.idea/
+.DS_Store
+env/
+*.aux
+*.ent
+*.log
+*.toc
+*.gz
+*.doc2vec
+*.npy
+*.zip
+*.pyc
+resources/*.txt
+resources/*.jar
+Models/
+Misc/
