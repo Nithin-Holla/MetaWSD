@@ -8,10 +8,10 @@ class MetaModel(nn.Module):
     def __init__(self, config):
         super(MetaModel, self).__init__()
 
+        self.num_shots = config.get('num_shots', 5)
         self.learner = config['learner_model']
         self.learner_loss = config['learner_loss']
         self.learner_lr = config.get('learner_lr', 1e-3)
-        self.num_shots = config.get('num_shots', 5)
 
     def forward(self, support_data_loaders, query_data_loaders):
         query_outputs = []
