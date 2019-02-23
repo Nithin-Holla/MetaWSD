@@ -1,3 +1,5 @@
+from torch import nn
+
 import numpy
 import os
 import random
@@ -7,40 +9,39 @@ numpy.random.seed(57)
 random.seed(75)
 torch.manual_seed(1025)
 
-from torch import nn
-from torch.optim import Adam
-from torch.utils import data
 
-import logging
-import pickle
-
-
-class CNNModel(nn.Module):
-    def __init__(self, v_size, emb_dim, num_class, embeds=None):
-        super(CNNModel, self).__init__()
-        self.kernel_sizes = (2, 3, 4)
-        self.num_filters = 300
+class CNNClassificationModel(nn.Module):
+    def __init__(self, model_params, embeds=None, embeds_grad=False):
+        super(CNNClassificationModel, self).__init__()
+        self.kernel_sizes = model_params['kernel_sizes']
+        self.num_filters = model_params['num_filters']
+        self.embed_dim = model_params.get('embed_dim', 300)
+        self.num_classes = model_params.get('num_classes', 2)
+        self.dropout_ratio = model_params.get('dropout_ratio', 0.5)
 
         self.embedding = nn.Embedding(
-            num_embeddings=v_size,
-            embedding_dim=emb_dim,
+            num_embeddings=model_params['vocab_size'],
+            embedding_dim=self.embed_dim,
             padding_idx=0,
         )
         if embeds is not None:
             self.embedding.weight = nn.Parameter(embeds)
+        self.embedding.weight.requires_grad = embeds_grad
 
         self.convolve = nn.ModuleDict()
         self.pool = nn.ModuleDict()
         for i in self.kernel_sizes:
             self.convolve['Convolve' + str(i)] = nn.Conv1d(
-                in_channels=emb_dim,
+                in_channels=self.embed_dim,
                 out_channels=self.num_filters,
                 kernel_size=i
             )
-        self.linear1 = nn.Linear(self.num_filters * len(self.kernel_sizes), num_class)
+        self.linear1 = nn.Linear(
+            self.num_filters * len(self.kernel_sizes), self.num_classes
+        )
 
-        self.dropout_50 = nn.Dropout(p=0.50)
-        self.softmax = nn.Softmax(1)
+        self.dropout = nn.Dropout(p=self.dropout_ratio)
+        self.softmax = nn.Softmax(-1)
         self.relu = nn.ReLU()
 
         for name, param in self.named_parameters():
@@ -58,38 +59,42 @@ class CNNModel(nn.Module):
             max_pooled = torch.max(convolution, dim=-1)[0]
             convolution_outputs.append(max_pooled)
         hidden = torch.cat(convolution_outputs, 1)
-        dropout_1 = self.dropout_50(hidden)
+        dropout_1 = self.dropout(hidden)
         output = self.softmax(self.linear1(dropout_1))
         return hidden, output
 
 
 class RNNClassificationModel(nn.Module):
-    def __init__(self, v_size, emb_dim, hid_dim, num_class, embeds=None):
+    def __init__(self, model_params, embeds=None, embeds_grad=False):
         super(RNNClassificationModel, self).__init__()
+        self.embed_dim = model_params['embed_dim']
+        self.hidden = model_params['hidden_size']
+        self.num_classes = model_params['num_classes']
+        self.dropout_ratio = model_params.get('dropout_ratio', 0.5)
 
         self.embedding = nn.Embedding(
-            num_embeddings=v_size,
-            embedding_dim=emb_dim,
+            num_embeddings=model_params['vocab_size'],
+            embedding_dim=self.embed_dim,
             padding_idx=0,
         )
         if embeds is not None:
             self.embedding.weight = nn.Parameter(embeds)
+        self.embedding.weight.requires_grad = embeds_grad
 
         self.gru1 = nn.GRU(
-            input_size=emb_dim,
-            hidden_size=hid_dim,
+            input_size=self.embed_dim,
+            hidden_size=self.hidden,
             batch_first=True,
         )
         self.gru2 = nn.GRU(
-            input_size=hid_dim,
-            hidden_size=hid_dim,
+            input_size=self.hidden,
+            hidden_size=self.hidden,
             batch_first=True
         )
-        self.linear = nn.Linear(hid_dim, num_class)
+        self.linear = nn.Linear(self.hidden, self.num_classes)
 
-        self.dropout_25 = nn.Dropout(p=0.25)
-        self.dropout_50 = nn.Dropout(p=0.50)
-        self.softmax = nn.Softmax(1)
+        self.dropout = nn.Dropout(p=self.dropout_ratio)
+        self.softmax = nn.Softmax(-1)
         self.tanh = nn.Tanh()
 
         for name, param in self.named_parameters():
@@ -104,14 +109,13 @@ class RNNClassificationModel(nn.Module):
 
     def forward(self, input_tensor):
         embeds = self.embedding(input_tensor)
-        dropout_1 = self.dropout_25(embeds)
-        gru_1, _ = self.gru1(dropout_1)
+        gru_1, _ = self.gru1(embeds)
         gru_1 = self.tanh(gru_1)
-        dropout_2 = self.dropout_25(gru_1)
-        _, h_n = self.gru2(dropout_2)
+        dropout_1 = self.dropout(gru_1)
+        _, h_n = self.gru2(dropout_1)
         h_n = self.tanh(h_n)
-        dropout_3 = self.dropout_50(h_n[0])
-        output = self.linear(dropout_3)
+        dropout_2 = self.dropout(h_n[0])
+        output = self.linear(dropout_2)
         if output.size()[-1] > 1:
             output = self.softmax(output)
         else:
@@ -120,27 +124,31 @@ class RNNClassificationModel(nn.Module):
 
 
 class RNNSequenceModel(nn.Module):
-    def __init__(self, v_size, emb_dim, hid_dim, num_class, embeds=None):
+    def __init__(self, model_params, embeds=None, embeds_grad=False):
         super(RNNSequenceModel, self).__init__()
+        self.hidden = model_params['hidden_size']
+        self.num_outputs = model_params['num_outputs']
+        self.embed_dim = model_params['embed_dim']
+        self.dropout_ratio = model_params.get('dropout_ratio', 0.5)
 
         self.embedding = nn.Embedding(
-            num_embeddings=v_size,
-            embedding_dim=emb_dim,
+            num_embeddings=model_params['vocab_size'],
+            embedding_dim=self.embed_dim,
             padding_idx=0,
         )
         if embeds is not None:
             self.embedding.weight = nn.Parameter(embeds)
+        self.embedding.weight.requires_grad = embeds_grad
 
         self.gru1 = nn.GRU(
-            input_size=emb_dim,
-            hidden_size=hid_dim,
+            input_size=self.embed_dim,
+            hidden_size=self.hidden,
             batch_first=True,
         )
-        self.linear1 = nn.Linear(hid_dim, hid_dim // 2)
-        self.linear2 = nn.Linear(hid_dim // 2, num_class)
+        self.linear1 = nn.Linear(self.hidden, self.hidden // 2)
+        self.linear2 = nn.Linear(self.hidden // 2, self.num_outputs)
 
-        self.dropout_25 = nn.Dropout(p=0.25)
-        self.dropout_50 = nn.Dropout(p=0.50)
+        self.dropout = nn.Dropout(p=self.dropout_ratio)
         self.softmax = nn.Softmax(-1)
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
@@ -157,26 +165,13 @@ class RNNSequenceModel(nn.Module):
 
     def forward(self, input_tensor):
         embeds = self.embedding(input_tensor)
-        dropout_1 = self.dropout_25(embeds)
-        h, _ = self.gru1(dropout_1)
-        h = self.tanh(h)
-        d = self.tanh(self.linear1(h))
-        o = self.linear2(d)
-        if o.size()[-1] > 1:
-            o = self.softmax(o)
+        hidden, _ = self.gru1(embeds)
+        hidden = self.tanh(hidden)
+        d = self.tanh(self.linear1(hidden))
+        dropout = self.dropout(d)
+        output = self.linear2(dropout)
+        if output.size()[-1] > 1:
+            output = self.softmax(output)
         else:
-            o = self.sigmoid(o)
-        return o
-
-
-class DataLoader(data.Dataset):
-    def __init__(self, samples, classes):
-        super(DataLoader, self).__init__()
-        self.samples = samples
-        self.classes = classes
-
-    def __getitem__(self, index):
-        return self.samples[index], self.classes[index]
-
-    def __len__(self):
-        return len(self.classes)
+            output = self.sigmoid(output)
+        return output

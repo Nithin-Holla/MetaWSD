@@ -15,3 +15,5 @@ resources/*.txt
 resources/*.jar
 Models/
 Misc/
+data_*
+embeddings/
