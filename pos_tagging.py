@@ -11,12 +11,21 @@ CONFIG = {
     'learner_params': {
         'vocab_size': 200002,
         'hidden_size': 128,
-        'num_outputs': 20,
+        'num_outputs': 17,
         'embed_dim': 300,
     },
     'trained_learner': None,
     'num_shots': 10,
+    'num_meta_epochs': 50,
+    'early_stopping': 3,
     'base': BASE_DIR,
+}
+
+POS_TAGS = {
+    'ADJ': 0, 'ADV': 1, 'INTJ': 2, 'NOUN': 3, 'PROPN': 4,
+    'VERB': 5, 'ADP': 6, 'AUX': 7, 'CCONJ': 8, 'DET': 9,
+    'NUM': 10, 'PART': 11, 'PRON': 12, 'SCONJ': 13,
+    'PUNCT': 14, 'SYM': 15, 'X': 16,
 }
 
 
