@@ -1,3 +1,4 @@
+from base_models import RNNSequenceModel
 from torch import nn
 
 import coloredlogs
@@ -12,14 +13,18 @@ coloredlogs.install(logger=logger, level='DEBUG',
                         ' - %(message)s')
 
 
-class MetaModel(nn.Module):
+class POSMetaModel(nn.Module):
     def __init__(self, config):
-        super(MetaModel, self).__init__()
+        super(POSMetaModel, self).__init__()
         self.base = config['base']
         self.embeddings_file = config['embeddings']
-        self.learner = config['learner_model']
-        self.learner_loss = config['learner_loss']
+        self.learner_loss = nn.CrossEntropyLoss()
         self.learner_lr = config.get('learner_lr', 1e-3)
+        self.learner = RNNSequenceModel(config['learner_params'])
+        if config['trained_learner']:
+            self.learner.load_state_dict(torch.load(
+                os.path.join(self.base, 'models', config['trained_learner'])
+            ))
 
     def forward(self, support_loaders, query_loaders, languages):
         query_losses = []

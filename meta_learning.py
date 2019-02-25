@@ -1,6 +1,4 @@
-from base_model import RNNSequenceModel
-from meta_model import MetaModel
-from torch import nn
+from pos_meta_model import POSMetaModel
 from torch import optim
 
 import coloredlogs
@@ -16,21 +14,12 @@ coloredlogs.install(logger=logger, level='DEBUG',
 
 class MetaLearning:
     def __init__(self, config):
-        if 'rnn_sequence' in config['learner_model']:
-            config['learner_loss'] = nn.CrossEntropyLoss()
-            config['learner_model'] = RNNSequenceModel(
-                config['learner_params']
-            )
-
-        self.meta_model = MetaModel(config)
-        if config['trained_learner']:
-            self.meta_model.learner.load_state_dict(torch.load(os.path.join(
-                config['base'], 'models', config['trained_learner']
-            )))
         self.base = config['base']
         self.stamp = config['stamp']
         self.meta_epochs = config['num_meta_epochs']
         self.early_stopping = config['early_stopping']
+        if 'pos' in config['meta_model']:
+            self.meta_model = POSMetaModel(config)
 
     def meta_training(self, support_loaders, query_loaders, languages):
         meta_optimizer = optim.Adam(self.meta_model.learner.parameters())

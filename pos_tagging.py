@@ -9,11 +9,9 @@ import pickle
 import torch
 torch.manual_seed(1025)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 CONFIG = {
     'stamp': str(datetime.now()).replace(':', '-').replace(' ', '_'),
-    'learner_model': 'rnn_sequence',
+    'meta_model': 'pos_meta_model',
     'learner_params': {
         'vocab_size': 200002,
         'hidden_size': 128,
@@ -32,7 +30,7 @@ CONFIG = {
     'embeddings': os.path.join(
         'embeddings', 'wiki.multi.{language}.vec'
     ),
-    'base': BASE_DIR,
+    'base': os.path.dirname(os.path.abspath(__file__)),
 }
 
 POS_TAGS = {
