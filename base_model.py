@@ -139,7 +139,7 @@ class RNNSequenceModel(nn.Module):
             self.embedding.weight = nn.Parameter(embeds)
         self.embedding.weight.requires_grad = embeds_grad
 
-        self.gru1 = nn.GRU(
+        self.gru = nn.GRU(
             input_size=self.embed_dim,
             hidden_size=self.hidden,
             batch_first=True,
@@ -164,7 +164,7 @@ class RNNSequenceModel(nn.Module):
 
     def forward(self, input_tensor):
         embeds = self.embedding(input_tensor)
-        hidden, _ = self.gru1(embeds)
+        hidden, _ = self.gru(embeds)
         hidden = self.tanh(hidden)
         d = self.tanh(self.linear1(hidden))
         dropout = self.dropout(d)

@@ -8,7 +8,6 @@ import torch
 class MetaModel(nn.Module):
     def __init__(self, config):
         super(MetaModel, self).__init__()
-
         self.base = config['base']
         self.embeddings_file = config['embeddings']
         self.learner = config['learner_model']
@@ -18,7 +17,9 @@ class MetaModel(nn.Module):
     def forward(self, support_loaders, query_loaders, languages):
         query_outputs = []
         query_losses = []
-        for support, query, lang in zip(support_loaders, query_loaders, languages):
+        for support, query, lang in zip(
+                support_loaders, query_loaders, languages
+        ):
             learner = copy.deepcopy(self.learner)
             learner.embedding.weight.data = self.load_embeddings(lang)
             learner.zero_grad()
@@ -46,6 +47,7 @@ class MetaModel(nn.Module):
                 query_output.extend(output.data.numpy())
             query_outputs.append(query_output)
             query_losses.append(query_loss)
+            print('Loss on language {} is {}'.format(lang, query_loss))
 
             for param, new_param in zip(
                 self.learner.parameters(), learner.parameters()

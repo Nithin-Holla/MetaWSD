@@ -2,6 +2,8 @@ from datetime import datetime
 from meta_learning import MetaLearning
 from torch.utils import data
 
+import coloredlogs
+import logging
 import os
 import pickle
 import torch
@@ -39,6 +41,11 @@ POS_TAGS = {
     'SCONJ': 14, 'PUNCT': 15, 'SYM': 16, 'X': 17,
 }
 
+logger = logging.getLogger('POSTaggingLog')
+coloredlogs.install(logger=logger, level='DEBUG',
+                    fmt='%(asctime)s - %(name)s - %(levelname)s'
+                        ' - %(message)s')
+
 
 class DataLoader(data.Dataset):
     def __init__(self, samples, classes, language):
@@ -71,10 +78,9 @@ def load_vocab(language):
         count = 0
         for vector in vectors:
             count += 1
-            if count == 1:
-                continue
-            word = vector[: vector.index(' ')]
-            vocab[word] = len(vocab)
+            if count > 1:
+                word = vector[: vector.index(' ')]
+                vocab[word] = len(vocab)
     vocab['<UNK>'] = len(vocab)
     return vocab
 
@@ -112,12 +118,12 @@ def produce_loader(language, samples, vocab):
 
 
 if __name__ == "__main__":
-    languages = [
-        'bg', 'ca', 'cs', 'da', 'de', 'el', 'en', 'es',
-        'et', 'fi', 'fr', 'he', 'hr', 'hu', 'id', 'it',
-        'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk',
-        'sl', 'sv', 'tr', 'uk', 'vi'
-    ]
+    languages = ['bg', 'ca']
+        # 'bg', 'ca', 'cs', 'da', 'de', 'el', 'en', 'es',
+        # 'et', 'fi', 'fr', 'he', 'hr', 'hu', 'id', 'it',
+        # 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk',
+        # 'sl', 'sv', 'tr', 'uk', 'vi'
+    # ]
 
     support_loaders = []
     query_loaders = []
@@ -127,6 +133,7 @@ if __name__ == "__main__":
         s, q = produce_loader(lang, dataset, vocabulary)
         support_loaders.append(s)
         query_loaders.append(q)
+    logger.info('{} data loaders prepared'.format(len(languages)))
     meta_learner = MetaLearning(CONFIG)
     meta_learner.meta_training(support_loaders, query_loaders, languages)
 
