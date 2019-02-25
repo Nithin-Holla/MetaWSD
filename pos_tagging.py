@@ -22,7 +22,7 @@ CONFIG = {
     'learner_lr': 1e-2,
     'num_shots': 10,
     'num_test_samples': 1500,
-    'num_meta_epochs': 50,
+    'num_meta_epochs': 20,
     'early_stopping': 3,
     'data_files': os.path.join(
         'data_pos_tagging', 'dataset.{language}.pkl'

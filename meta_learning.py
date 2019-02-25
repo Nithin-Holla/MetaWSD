@@ -38,7 +38,7 @@ class MetaLearning:
 
             loss_value = torch.sum(torch.Tensor(losses)).item()
             accuracy = sum(accuracies) / len(accuracies)
-            logger.info('Meta epoch {}:\tloss = {:.5f}\taccuracy = {:.5f}'.format(
+            logger.info('Meta epoch {}: loss = {:.5f} accuracy = {:.5f}'.format(
                 epoch + 1, loss_value, accuracy
             ))
             if loss_value <= best_loss:

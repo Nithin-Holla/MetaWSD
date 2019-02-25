@@ -26,7 +26,7 @@ class POSMetaModel(nn.Module):
                 os.path.join(self.base, 'models', config['trained_learner'])
             ))
 
-    def forward(self, support_loaders, query_loaders, languages):
+    def forward(self, support_loaders, query_loaders, languages, updates=1):
         query_losses = []
         accuracies = []
         for support, query, lang in zip(
@@ -34,33 +34,38 @@ class POSMetaModel(nn.Module):
         ):
             learner = copy.deepcopy(self.learner)
             learner.embedding.weight.data = self.load_embeddings(lang)
-            learner.zero_grad()
-            for batch_x, batch_y in support:
-                output = learner(batch_x)
-                loss = self.learner_loss(
-                    output.view(output.size()[0] * output.size()[1], -1),
-                    batch_y.view(-1)
-                )
-                params = [p for p in learner.parameters() if p.requires_grad]
-                grads = torch.autograd.grad(loss, params)
-                for param, grad in zip(params, grads):
-                    param.data -= grad * self.learner_lr
-
             num_correct, num_total, query_loss = 0, 0, 0.0
-            for batch_x, batch_y in query:
-                output = learner(batch_x)
-                output = output.view(output.size()[0] * output.size()[1], -1)
-                batch_y = batch_y.view(-1)
-                loss = self.learner_loss(output, batch_y)
-                loss.backward()
-                query_loss += loss.item()
-                num_correct += torch.eq(output.max(-1)[1], batch_y).sum().item()
-                num_total += batch_y.size()[0]
+            for _ in range(updates):
+                for batch_x, batch_y in support:
+                    output = learner(batch_x)
+                    loss = self.learner_loss(
+                        output.view(output.size()[0] * output.size()[1], -1),
+                        batch_y.view(-1)
+                    )
+                    params = [
+                        p for p in learner.parameters() if p.requires_grad
+                    ]
+                    grads = torch.autograd.grad(loss, params)
+                    for param, grad in zip(params, grads):
+                        param.data -= grad * self.learner_lr
+
+                num_correct, num_total, query_loss = 0, 0, 0.0
+                learner.zero_grad()
+                for batch_x, batch_y in query:
+                    output = learner(batch_x)
+                    output = output.view(
+                        output.size()[0] * output.size()[1], -1
+                    )
+                    batch_y = batch_y.view(-1)
+                    loss = self.learner_loss(output, batch_y)
+                    loss.backward()
+                    query_loss += loss.item()
+                    num_correct += torch.eq(
+                        output.max(-1)[1], batch_y
+                    ).sum().item()
+                    num_total += batch_y.size()[0]
             query_losses.append(query_loss)
             accuracies.append(1.0 * num_correct / num_total)
-            logger.info('Language {}:\tloss = {:.5f}\taccuracy = {:.5f}'.format(
-                lang, query_losses[-1], accuracies[-1]
-            ))
 
             for param, new_param in zip(
                 self.learner.parameters(), learner.parameters()
@@ -69,6 +74,9 @@ class POSMetaModel(nn.Module):
                     param.grad += new_param.grad
                 elif param.requires_grad:
                     param.grad = new_param.grad
+            logger.info('Language {}: loss = {:.5f} accuracy = {:.5f}'.format(
+                lang, query_losses[-1], accuracies[-1]
+            ))
         return query_losses, accuracies
 
     def load_embeddings(self, language):
