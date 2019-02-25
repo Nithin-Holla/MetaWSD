@@ -64,6 +64,9 @@ class POSMetaModel(nn.Module):
                         output.max(-1)[1], batch_y
                     ).sum().item()
                     num_total += batch_y.size()[0]
+                logger.info('Language {}: loss = {:.5f} accuracy = {:.5f}'.format(
+                    lang, query_loss, 1.0 * num_correct / num_total
+                ))
             query_losses.append(query_loss)
             accuracies.append(1.0 * num_correct / num_total)
 
@@ -74,9 +77,6 @@ class POSMetaModel(nn.Module):
                     param.grad += new_param.grad
                 elif param.requires_grad:
                     param.grad = new_param.grad
-            logger.info('Language {}: loss = {:.5f} accuracy = {:.5f}'.format(
-                lang, query_losses[-1], accuracies[-1]
-            ))
         return query_losses, accuracies
 
     def load_embeddings(self, language):

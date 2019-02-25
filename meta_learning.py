@@ -64,3 +64,5 @@ class MetaLearning:
                 support_loaders, query_loaders, languages
         ):
             self.meta_model([support], [query], [lang], self.updates)
+            if self.updates > 1:
+                logger.info('')
