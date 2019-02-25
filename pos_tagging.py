@@ -134,6 +134,6 @@ if __name__ == "__main__":
         query_loaders.append(q)
     logger.info('{} data loaders prepared'.format(len(languages)))
     meta_learner = MetaLearning(CONFIG)
-    meta_learner.meta_training(support_loaders, query_loaders, languages)
+    meta_learner.training(support_loaders, query_loaders, languages)
 
 

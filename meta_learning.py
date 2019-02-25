@@ -21,7 +21,7 @@ class MetaLearning:
         if 'pos' in config['meta_model']:
             self.meta_model = POSMetaModel(config)
 
-    def meta_training(self, support_loaders, query_loaders, languages):
+    def training(self, support_loaders, query_loaders, languages):
         meta_optimizer = optim.Adam(self.meta_model.learner.parameters())
 
         best_loss = float('inf')
@@ -55,5 +55,8 @@ class MetaLearning:
                 logger.info('')
         self.meta_model.learner.load_state_dict(torch.load(model_path))
 
-    def meta_testing(self, support_loaders, query_loaders, languages):
-        pass
+    def testing(self, support_loaders, query_loaders, languages, updates=1):
+        for support, query, lang in zip(
+                support_loaders, query_loaders, languages
+        ):
+            self.meta_model([support], [query], [lang], updates)
