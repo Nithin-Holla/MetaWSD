@@ -53,7 +53,7 @@ class MetaModel(nn.Module):
                 num_total += batch_y.size()[0]
             query_losses.append(query_loss)
             accuracies.append(1.0 * num_correct / num_total)
-            logger.info('Language {}:\tloss = {}\taccuracy = {}'.format(
+            logger.info('Language {}:\tloss = {:.5f}\taccuracy = {:.5f}'.format(
                 lang, query_losses[-1], accuracies[-1]
             ))
 
