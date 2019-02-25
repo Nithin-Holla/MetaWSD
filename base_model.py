@@ -7,7 +7,6 @@ import torch
 os.environ['PYTHONHASHSEED'] = '0'
 numpy.random.seed(57)
 random.seed(75)
-torch.manual_seed(1025)
 
 
 class CNNClassificationModel(nn.Module):
