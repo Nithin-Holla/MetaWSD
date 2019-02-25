@@ -19,12 +19,14 @@ class MetaLearning:
         self.updates = config['num_updates']
         self.meta_epochs = config['num_meta_epochs']
         self.early_stopping = config['early_stopping']
+        self.learner_lr = config.get('learner_lr', 1e-3)
         if 'pos' in config['meta_model']:
             self.meta_model = POSMetaModel(config)
 
     def training(self, support_loaders, query_loaders, languages):
-        meta_optimizer = optim.Adam(self.meta_model.learner.parameters())
-
+        meta_optimizer = optim.Adam(
+            self.meta_model.learner.parameters(), lr=self.learner_lr
+        )
         best_loss = float('inf')
         patience = 0
         model_path = os.path.join(
@@ -51,9 +53,9 @@ class MetaLearning:
             else:
                 patience += 1
                 logger.info('Loss did not improve')
+                logger.info('')
                 if patience == self.early_stopping:
                     break
-                logger.info('')
         self.meta_model.learner.load_state_dict(torch.load(model_path))
 
     def testing(self, support_loaders, query_loaders, languages):
