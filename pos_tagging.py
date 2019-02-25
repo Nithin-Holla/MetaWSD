@@ -1,5 +1,6 @@
 from datetime import datetime
 from meta_learning import MetaLearning
+from pos_baseline_model import POSBaseModel
 from torch.utils import data
 
 import coloredlogs
@@ -21,6 +22,7 @@ CONFIG = {
     'trained_learner': None,
     'learner_lr': 1e-2,
     'num_shots': 10,
+    'num_updates': 1,
     'num_test_samples': 1500,
     'num_meta_epochs': 20,
     'early_stopping': 3,
@@ -47,11 +49,10 @@ coloredlogs.install(logger=logger, level='DEBUG',
 
 
 class DataLoader(data.Dataset):
-    def __init__(self, samples, classes, language):
+    def __init__(self, samples, classes):
         super(DataLoader, self).__init__()
         self.samples = samples
         self.classes = classes
-        self.language = language
 
     def __getitem__(self, index):
         return self.samples[index], self.classes[index]
@@ -84,7 +85,7 @@ def load_vocab(language):
     return vocab
 
 
-def produce_loader(language, samples, vocab):
+def produce_loader(samples, vocab):
     x, y = [], []
     max_len = 0
     total_samples = CONFIG['num_shots'] + CONFIG['num_test_samples']
@@ -104,12 +105,10 @@ def produce_loader(language, samples, vocab):
     support = DataLoader(
         torch.LongTensor(x[:CONFIG['num_shots']]),
         torch.LongTensor(y[:CONFIG['num_shots']]),
-        language
     )
     query = DataLoader(
         torch.LongTensor(x[-CONFIG['num_test_samples']:]),
         torch.LongTensor(y[-CONFIG['num_test_samples']:]),
-        language
     )
     support_loader = data.DataLoader(support, batch_size=CONFIG['num_shots'])
     query_loader = data.DataLoader(query, batch_size=CONFIG['num_test_samples'])
@@ -123,17 +122,39 @@ if __name__ == "__main__":
         'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk',
         'sl', 'sv', 'tr', 'uk', 'vi'
     ]
-
     support_loaders = []
     query_loaders = []
     for lang in languages:
         dataset = read_dataset(lang)
         vocabulary = load_vocab(lang)
-        s, q = produce_loader(lang, dataset, vocabulary)
+        s, q = produce_loader(dataset, vocabulary)
         support_loaders.append(s)
         query_loaders.append(q)
     logger.info('{} data loaders prepared'.format(len(languages)))
+
+    train_set = {'en', 'es', 'uk', 'cs', 'da'}
+    train_supports, train_queries, train_languages = [], [], []
+    test_supports, test_queries, test_languages = [], [], []
+    for i in range(len(languages)):
+        if languages[i] in train_set:
+            train_supports.append(support_loaders[i])
+            train_queries.append(query_loaders[i])
+            train_languages.append(languages[i])
+        else:
+            test_supports.append(support_loaders[i])
+            test_queries.append(query_loaders[i])
+            test_languages.append(languages[i])
+
     meta_learner = MetaLearning(CONFIG)
-    meta_learner.training(support_loaders, query_loaders, languages)
+    meta_learner.training(train_supports, train_queries, train_languages)
+    meta_learner.testing(test_supports, test_queries, test_languages)
 
-
+    pos_base_model = POSBaseModel(CONFIG)
+    pos_base_model(
+        train_supports, train_queries,
+        train_languages, CONFIG['num_meta_epochs']
+    )
+    pos_base_model(
+        test_supports, test_queries,
+        test_languages, CONFIG['num_updates']
+    )

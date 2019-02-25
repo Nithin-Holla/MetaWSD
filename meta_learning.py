@@ -56,6 +56,7 @@ class MetaLearning:
         self.meta_model.learner.load_state_dict(torch.load(model_path))
 
     def testing(self, support_loaders, query_loaders, languages, updates=1):
+        logger.info('---------- Meta testing starts here ----------')
         for support, query, lang in zip(
                 support_loaders, query_loaders, languages
         ):
