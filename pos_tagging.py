@@ -21,6 +21,7 @@ CONFIG = {
         'embed_dim': 300,
     },
     'trained_learner': None,
+    'learner_lr': 1e-2,
     'num_shots': 10,
     'num_test_samples': 1500,
     'num_meta_epochs': 50,
@@ -118,12 +119,12 @@ def produce_loader(language, samples, vocab):
 
 
 if __name__ == "__main__":
-    languages = ['bg', 'ca']
-        # 'bg', 'ca', 'cs', 'da', 'de', 'el', 'en', 'es',
-        # 'et', 'fi', 'fr', 'he', 'hr', 'hu', 'id', 'it',
-        # 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk',
-        # 'sl', 'sv', 'tr', 'uk', 'vi'
-    # ]
+    languages = [
+        'bg', 'ca', 'cs', 'da', 'de', 'el', 'en', 'es',
+        'et', 'fi', 'fr', 'he', 'hr', 'hu', 'id', 'it',
+        'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk',
+        'sl', 'sv', 'tr', 'uk', 'vi'
+    ]
 
     support_loaders = []
     query_loaders = []

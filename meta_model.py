@@ -1,8 +1,15 @@
 from torch import nn
 
+import coloredlogs
 import copy
+import logging
 import os
 import torch
+
+logger = logging.getLogger('Log')
+coloredlogs.install(logger=logger, level='DEBUG',
+                    fmt='%(asctime)s - %(name)s - %(levelname)s'
+                        ' - %(message)s')
 
 
 class MetaModel(nn.Module):
@@ -15,8 +22,8 @@ class MetaModel(nn.Module):
         self.learner_lr = config.get('learner_lr', 1e-3)
 
     def forward(self, support_loaders, query_loaders, languages):
-        query_outputs = []
         query_losses = []
+        accuracies = []
         for support, query, lang in zip(
                 support_loaders, query_loaders, languages
         ):
@@ -34,20 +41,21 @@ class MetaModel(nn.Module):
                 for param, grad in zip(params, grads):
                     param.data -= grad * self.learner_lr
 
-            query_output = []
-            query_loss = 0.0
+            num_correct, num_total, query_loss = 0, 0, 0.0
             for batch_x, batch_y in query:
                 output = learner(batch_x)
-                loss = self.learner_loss(
-                    output.view(output.size()[0] * output.size()[1], -1),
-                    batch_y.view(-1)
-                )
+                output = output.view(output.size()[0] * output.size()[1], -1)
+                batch_y = batch_y.view(-1)
+                loss = self.learner_loss(output, batch_y)
                 loss.backward()
                 query_loss += loss.item()
-                query_output.extend(output.data.numpy())
-            query_outputs.append(query_output)
+                num_correct += torch.eq(output.max(-1)[1], batch_y).sum().item()
+                num_total += batch_y.size()[0]
             query_losses.append(query_loss)
-            print('Loss on language {} is {}'.format(lang, query_loss))
+            accuracies.append(1.0 * num_correct / num_total)
+            logger.info('Language {}:\tloss = {}\taccuracy = {}'.format(
+                lang, query_losses[-1], accuracies[-1]
+            ))
 
             for param, new_param in zip(
                 self.learner.parameters(), learner.parameters()
@@ -56,7 +64,7 @@ class MetaModel(nn.Module):
                     param.grad += new_param.grad
                 elif param.requires_grad:
                     param.grad = new_param.grad
-        return query_losses, query_outputs
+        return query_losses, accuracies
 
     def load_embeddings(self, language):
         file = os.path.join(

@@ -42,11 +42,16 @@ class MetaLearning:
         )
         for epoch in range(self.meta_epochs):
             meta_optimizer.zero_grad()
-            loss, _ = self.meta_model(support_loaders, query_loaders, languages)
+            losses, accuracies = self.meta_model(
+                support_loaders, query_loaders, languages
+            )
             meta_optimizer.step()
 
-            loss_value = torch.sum(torch.Tensor(loss)).item()
-            logger.info('Meta epoch {}: loss {}'.format(epoch + 1, loss_value))
+            loss_value = torch.sum(torch.Tensor(losses)).item()
+            accuracy = sum(accuracies) / len(accuracies)
+            logger.info('Meta epoch {}:\tloss = {}\taccuracy = {}'.format(
+                epoch + 1, loss_value, accuracy
+            ))
             if loss_value <= best_loss:
                 patience = 0
                 best_loss = loss_value
