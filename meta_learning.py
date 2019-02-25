@@ -16,6 +16,7 @@ class MetaLearning:
     def __init__(self, config):
         self.base = config['base']
         self.stamp = config['stamp']
+        self.updates = config['num_updates']
         self.meta_epochs = config['num_meta_epochs']
         self.early_stopping = config['early_stopping']
         if 'pos' in config['meta_model']:
@@ -55,9 +56,9 @@ class MetaLearning:
                 logger.info('')
         self.meta_model.learner.load_state_dict(torch.load(model_path))
 
-    def testing(self, support_loaders, query_loaders, languages, updates=1):
+    def testing(self, support_loaders, query_loaders, languages):
         logger.info('---------- Meta testing starts here ----------')
         for support, query, lang in zip(
                 support_loaders, query_loaders, languages
         ):
-            self.meta_model([support], [query], [lang], updates)
+            self.meta_model([support], [query], [lang], self.updates)
