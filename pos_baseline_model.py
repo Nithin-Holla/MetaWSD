@@ -23,49 +23,52 @@ class POSBaseModel(nn.Module):
         self.learner_loss = nn.CrossEntropyLoss()
         self.learner_lr = config.get('learner_lr', 1e-3)
         self.learner = RNNSequenceModel(config['learner_params'])
+        if config.get('trained_baseline', None):
+            self.learner.load_state_dict(torch.load(
+                os.path.join(self.base, 'models', config['trained_baseline'])
+            ))
 
-    def forward(self, train_loaders, test_loaders, languages, epochs=1):
-        for train, test, lang in zip(train_loaders, test_loaders, languages):
-            self.learner.embedding.weight.data = self.load_embeddings(lang)
-            optimizer = optim.Adam(self.learner.parameters())
-            best_loss = float('inf')
-            best_model = None
-            patience = 0
-            for epoch in range(epochs):
-                for batch_x, batch_y in train:
-                    optimizer.zero_grad()
-                    output = self.learner(batch_x)
-                    loss = self.learner_loss(
-                        output.view(output.size()[0] * output.size()[1], -1),
-                        batch_y.view(-1)
-                    )
-                    loss.backward()
-                    optimizer.step()
-                num_correct, num_total, total_loss = 0, 0, 0.0
-                for batch_x, batch_y in test:
-                    output = self.learner(batch_x)
-                    output = output.view(
-                        output.size()[0] * output.size()[1], -1
-                    )
-                    batch_y = batch_y.view(-1)
-                    loss = self.learner_loss(output, batch_y)
-                    total_loss += loss.item()
-                    num_correct += torch.eq(
-                        output.max(-1)[1], batch_y
-                    ).sum().item()
-                    num_total += batch_y.size()[0]
-                logger.info('Language {}: loss = {:.5f} accuracy = {:.5f}'.format(
-                    lang, total_loss, 1.0 * num_correct / num_total
-                ))
-                if total_loss < best_loss:
-                    patience = 0
-                    best_model = copy.deepcopy(self.learner)
-                else:
-                    patience += 1
-                    if patience == self.early_stopping:
-                        break
-            logger.info('')
-            self.learner = copy.deepcopy(best_model)
+    def forward(self, train_loader, test_loader, language, updates=1):
+        self.learner.embedding.weight.data = self.load_embeddings(language)
+        optimizer = optim.Adam(self.learner.parameters(), lr=self.learner_lr)
+
+        best_loss = float('inf')
+        best_model = None
+        patience = 0
+        for epoch in range(updates):
+            for batch_x, batch_y in train_loader:
+                optimizer.zero_grad()
+                output = self.learner(batch_x)
+                loss = self.learner_loss(
+                    output.view(output.size()[0] * output.size()[1], -1),
+                    batch_y.view(-1)
+                )
+                loss.backward()
+                optimizer.step()
+            num_correct, num_total, total_loss = 0, 0, 0.0
+            for batch_x, batch_y in test_loader:
+                output = self.learner(batch_x)
+                output = output.view(
+                    output.size()[0] * output.size()[1], -1
+                )
+                batch_y = batch_y.view(-1)
+                loss = self.learner_loss(output, batch_y)
+                total_loss += loss.item()
+                num_correct += torch.eq(
+                    output.max(-1)[1], batch_y
+                ).sum().item()
+                num_total += batch_y.size()[0]
+            logger.info('Language {}: loss = {:.5f} accuracy = {:.5f}'.format(
+                language, total_loss, 1.0 * num_correct / num_total
+            ))
+            if total_loss < best_loss:
+                patience = 0
+                best_model = copy.deepcopy(self.learner)
+            else:
+                patience += 1
+                if patience == self.early_stopping:
+                    break
+        self.learner = copy.deepcopy(best_model)
 
     def load_embeddings(self, language):
         file = os.path.join(

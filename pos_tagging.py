@@ -1,6 +1,6 @@
 from datetime import datetime
 from meta_learning import MetaLearning
-from pos_baseline_model import POSBaseModel
+from baseline import Baseline
 from torch.utils import data
 
 import coloredlogs
@@ -21,11 +21,11 @@ CONFIG = {
     },
     'trained_learner': None,
     'learner_lr': 1e-2,
-    'num_shots': 10,
+    'num_shots': 100,
     'num_updates': 1,
     'num_test_samples': 1500,
-    'num_meta_epochs': 20,
-    'early_stopping': 3,
+    'num_meta_epochs': 5,
+    'early_stopping': 2,
     'data_files': os.path.join(
         'data_pos_tagging', 'dataset.{language}.pkl'
     ),
@@ -149,12 +149,6 @@ if __name__ == "__main__":
     meta_learner.training(train_supports, train_queries, train_languages)
     meta_learner.testing(test_supports, test_queries, test_languages)
 
-    pos_base_model = POSBaseModel(CONFIG)
-    pos_base_model(
-        train_supports, train_queries,
-        train_languages, CONFIG['num_meta_epochs']
-    )
-    pos_base_model(
-        test_supports, test_queries,
-        test_languages, CONFIG['num_updates']
-    )
+    pos_base_model = Baseline(CONFIG)
+    pos_base_model.training(train_supports, train_queries, train_languages)
+    pos_base_model.testing(test_supports, test_queries, test_languages)
