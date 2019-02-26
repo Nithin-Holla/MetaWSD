@@ -135,15 +135,15 @@ if __name__ == "__main__":
     train_set = {'en', 'es', 'uk', 'cs', 'da'}
     train_supports, train_queries, train_languages = [], [], []
     test_supports, test_queries, test_languages = [], [], []
-    for i in range(len(languages)):
-        if languages[i] in train_set:
-            train_supports.append(support_loaders[i])
-            train_queries.append(query_loaders[i])
-            train_languages.append(languages[i])
+    for l in range(len(languages)):
+        if languages[l] in train_set:
+            train_supports.append(support_loaders[l])
+            train_queries.append(query_loaders[l])
+            train_languages.append(languages[l])
         else:
-            test_supports.append(support_loaders[i])
-            test_queries.append(query_loaders[i])
-            test_languages.append(languages[i])
+            test_supports.append(support_loaders[l])
+            test_queries.append(query_loaders[l])
+            test_languages.append(languages[l])
 
     meta_learner = MetaLearning(CONFIG)
     meta_learner.training(train_supports, train_queries, train_languages)
