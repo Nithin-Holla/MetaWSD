@@ -63,6 +63,7 @@ class POSBaseModel(nn.Module):
             ))
             if total_loss < best_loss:
                 patience = 0
+                best_loss = total_loss
                 best_model = copy.deepcopy(self.learner)
             else:
                 patience += 1
