@@ -26,11 +26,12 @@ CONFIG = {
     'trained_learner': None,
     'learner_lr': 1e-2,
     'meta_lr': 1e-3,
+    'meta_lr_decay': 1e-4,
     'num_shots': 10,
     'num_updates': 5,
     'num_test_samples': 1500,
     'num_meta_epochs': 1000,
-    'early_stopping': 20,
+    'early_stopping': 10,
     'data_files': os.path.join(
         'data_abuse', 'dataset.{identifier}.csv'
     ),
@@ -172,3 +173,7 @@ if __name__ == "__main__":
     meta_learner = MetaLearning(CONFIG)
     meta_learner.training(train_supports, train_queries, train_datasets)
     meta_learner.testing(test_supports, test_queries, test_datasets)
+
+    abuse_base_model = Baseline(CONFIG)
+    abuse_base_model.training(train_supports, train_queries, train_datasets)
+    abuse_base_model.testing(test_supports, test_queries, test_datasets)

@@ -22,18 +22,18 @@ class AbuseMetaModel(nn.Module):
         self.learner_loss = nn.CrossEntropyLoss()
         self.learner_lr = config.get('learner_lr', 1e-3)
         self.learner = RNNClassificationModel(
-            config['learner_params'], config['embeddings']
+            config['learner_params'], config['embeddings'], True
         )
         if config['trained_learner']:
             self.learner.load_state_dict(torch.load(
                 os.path.join(self.base, 'models', config['trained_learner'])
             ))
 
-    def forward(self, support_loaders, query_loaders, languages, updates=1):
+    def forward(self, support_loaders, query_loaders, datasets, updates=1):
         query_losses = []
         accuracies = []
-        for support, query, lang in zip(
-                support_loaders, query_loaders, languages
+        for support, query, dataset in zip(
+                support_loaders, query_loaders, datasets
         ):
             learner = copy.deepcopy(self.learner)
             optimizer = optim.SGD(learner.parameters(), lr=self.learner_lr)
@@ -58,7 +58,7 @@ class AbuseMetaModel(nn.Module):
                     ).sum().item()
                     num_total += batch_y.size()[0]
                 logger.info('Dataset {}: loss = {:.5f} accuracy = {:.5f}'.format(
-                    lang, query_loss, 1.0 * num_correct / num_total
+                    dataset, query_loss, 1.0 * num_correct / num_total
                 ))
             query_losses.append(query_loss)
             accuracies.append(1.0 * num_correct / num_total)

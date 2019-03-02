@@ -1,3 +1,4 @@
+from abuse_baseline_model import AbuseBaseModel
 from pos_baseline_model import POSBaseModel
 
 import coloredlogs
@@ -15,6 +16,8 @@ class Baseline:
         self.epochs = config['num_meta_epochs']
         if 'pos' in config['meta_model']:
             self.baseline_model = POSBaseModel(config)
+        if 'abuse' in config['meta_model']:
+            self.baseline_model = AbuseBaseModel(config)
 
     def training(self, support_loaders, query_loaders, languages):
         for support, query, language in zip(
@@ -28,6 +31,6 @@ class Baseline:
         for support, query, lang in zip(
                 support_loaders, query_loaders, languages
         ):
-            self.baseline_model(support, query, lang, self.updates)
+            self.baseline_model(support, query, lang, self.updates*5)
             if self.updates > 1:
                 logger.info('')
