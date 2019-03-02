@@ -68,6 +68,6 @@ class MetaLearning:
         for support, query, idx in zip(
                 support_loaders, query_loaders, identifiers
         ):
-            self.meta_model([support], [query], [idx], self.updates*5)
+            self.meta_model([support], [query], [idx], self.updates*10)
             if self.updates > 1:
                 logger.info('')

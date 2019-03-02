@@ -39,6 +39,7 @@ class AbuseMetaModel(nn.Module):
             optimizer = optim.SGD(learner.parameters(), lr=self.learner_lr)
             num_correct, num_total, query_loss = 0, 0, 0.0
             for _ in range(updates):
+                learner.train()
                 for batch_x, batch_y in support:
                     output = learner(batch_x)
                     support_loss = self.learner_loss(output, batch_y)
@@ -48,6 +49,7 @@ class AbuseMetaModel(nn.Module):
 
                 num_correct, num_total, query_loss = 0, 0, 0.0
                 learner.zero_grad()
+                learner.eval()
                 for batch_x, batch_y in query:
                     output = learner(batch_x)
                     loss = self.learner_loss(output, batch_y)

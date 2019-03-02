@@ -39,12 +39,14 @@ class AbuseBaseModel(nn.Module):
         best_model = None
         patience = 0
         for epoch in range(updates):
+            self.learner.train()
             for batch_x, batch_y in train_loader:
                 optimizer.zero_grad()
                 output = self.learner(batch_x)
                 loss = self.learner_loss(output, batch_y)
                 loss.backward()
                 optimizer.step()
+            self.learner.eval()
             num_correct, num_total, total_loss = 0, 0, 0.0
             for batch_x, batch_y in test_loader:
                 output = self.learner(batch_x)
