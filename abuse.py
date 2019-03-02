@@ -62,9 +62,9 @@ def read_dataset(identifier, vocab):
     file = os.path.join(
         CONFIG['base'], CONFIG['data_files'].format(identifier=identifier)
     )
-    with open(file, 'r', encoding='utf-8') as dataset:
+    with open(file, 'r', encoding='utf-8') as data_file:
         samples, classes = [], []
-        dataset_reader = csv.reader(dataset)
+        dataset_reader = csv.reader(data_file)
         count = 0
         for line in dataset_reader:
             count += 1
@@ -83,7 +83,7 @@ def produce_loaders(samples, classes, vocab):
     max_len = 0
     required_samples = CONFIG['num_shots'] + CONFIG['num_test_samples']
     for sample, clazz in zip(samples, classes):
-        if len(x[clazz]) == required_samples:
+        if len(sample) > 100 or len(x[clazz]) == required_samples:
             continue
         x[clazz].append(sample)
         max_len = max(len(sample), max_len)
@@ -156,5 +156,19 @@ if __name__ == "__main__":
         query_loaders.append(q)
     logger.info('{} data loaders prepared'.format(len(datasets)))
 
+    train_set = {'detox_attack', 'detox_toxicity'}
+    train_supports, train_queries, train_datasets = [], [], []
+    test_supports, test_queries, test_datasets = [], [], []
+    for d in range(len(datasets)):
+        if datasets[d] in train_set:
+            train_supports.append(support_loaders[d])
+            train_queries.append(query_loaders[d])
+            train_datasets.append(datasets[d])
+        else:
+            test_supports.append(support_loaders[d])
+            test_queries.append(query_loaders[d])
+            test_datasets.append(datasets[d])
+
     meta_learner = MetaLearning(CONFIG)
-    meta_learner.training(support_loaders, query_loaders, datasets)
+    meta_learner.training(train_supports, train_queries, train_datasets)
+    meta_learner.testing(test_supports, test_queries, test_datasets)
