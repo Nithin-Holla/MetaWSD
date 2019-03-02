@@ -24,13 +24,13 @@ CONFIG = {
         'embed_dim': 300,
     },
     'trained_learner': None,
-    'learner_lr': 1e-1,
+    'learner_lr': 1e-2,
     'meta_lr': 1e-3,
     'num_shots': 10,
     'num_updates': 5,
     'num_test_samples': 1500,
-    'num_meta_epochs': 50,
-    'early_stopping': 5,
+    'num_meta_epochs': 1000,
+    'early_stopping': 20,
     'data_files': os.path.join(
         'data_abuse', 'dataset.{identifier}.csv'
     ),

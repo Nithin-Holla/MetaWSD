@@ -45,7 +45,6 @@ class AbuseMetaModel(nn.Module):
                     optimizer.zero_grad()
                     support_loss.backward()
                     optimizer.step()
-                    print(support_loss.item())
 
                 num_correct, num_total, query_loss = 0, 0, 0.0
                 learner.zero_grad()
