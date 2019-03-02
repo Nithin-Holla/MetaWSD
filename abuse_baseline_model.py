@@ -56,7 +56,7 @@ class AbuseBaseModel(nn.Module):
                     output.max(-1)[1], batch_y
                 ).sum().item()
                 num_total += batch_y.size()[0]
-            logger.info('Language {}: loss = {:.5f} accuracy = {:.5f}'.format(
+            logger.info('Dataset {}: loss = {:.5f} accuracy = {:.5f}'.format(
                 dataset, total_loss, 1.0 * num_correct / num_total
             ))
             if total_loss < best_loss:
