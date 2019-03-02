@@ -80,20 +80,16 @@ class RNNClassificationModel(nn.Module):
             self.embedding.weight = nn.Parameter(embeds)
         self.embedding.weight.requires_grad = embeds_grad
 
-        self.gru1 = nn.GRU(
+        self.gru = nn.GRU(
             input_size=self.embed_dim,
             hidden_size=self.hidden,
             batch_first=True,
-        )
-        self.gru2 = nn.GRU(
-            input_size=self.hidden,
-            hidden_size=self.hidden,
-            batch_first=True
         )
         self.linear = nn.Linear(self.hidden, self.num_classes)
 
         self.dropout = nn.Dropout(p=self.dropout_ratio)
         self.softmax = nn.Softmax(-1)
+        self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
 
         for name, param in self.named_parameters():
@@ -108,18 +104,15 @@ class RNNClassificationModel(nn.Module):
 
     def forward(self, input_tensor):
         embeds = self.embedding(input_tensor)
-        gru_1, _ = self.gru1(embeds)
-        gru_1 = self.tanh(gru_1)
-        dropout_1 = self.dropout(gru_1)
-        _, h_n = self.gru2(dropout_1)
+        _, h_n = self.gru(embeds)
         h_n = self.tanh(h_n)
-        dropout_2 = self.dropout(h_n[0])
-        output = self.linear(dropout_2)
+        dropout_1 = self.dropout(h_n[0])
+        output = self.linear(dropout_1)
         if output.size()[-1] > 1:
             output = self.softmax(output)
         else:
             output = self.sigmoid(output)
-        return h_n[0], output
+        return output
 
 
 class RNNSequenceModel(nn.Module):

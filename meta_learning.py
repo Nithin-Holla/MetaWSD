@@ -1,4 +1,5 @@
 from pos_meta_model import POSMetaModel
+from abuse_meta_model import AbuseMetaModel
 from torch import optim
 
 import coloredlogs
@@ -19,13 +20,15 @@ class MetaLearning:
         self.updates = config['num_updates']
         self.meta_epochs = config['num_meta_epochs']
         self.early_stopping = config['early_stopping']
-        self.learner_lr = config.get('learner_lr', 1e-3)
+        self.meta_lr = config.get('meta_lr', 1e-3)
         if 'pos' in config['meta_model']:
             self.meta_model = POSMetaModel(config)
+        if 'abuse' in config['meta_model']:
+            self.meta_model = AbuseMetaModel(config)
 
-    def training(self, support_loaders, query_loaders, languages):
+    def training(self, support_loaders, query_loaders, identifiers):
         meta_optimizer = optim.Adam(
-            self.meta_model.learner.parameters(), lr=self.learner_lr
+            self.meta_model.learner.parameters(), lr=self.meta_lr
         )
         best_loss = float('inf')
         patience = 0
@@ -35,7 +38,7 @@ class MetaLearning:
         for epoch in range(self.meta_epochs):
             meta_optimizer.zero_grad()
             losses, accuracies = self.meta_model(
-                support_loaders, query_loaders, languages
+                support_loaders, query_loaders, identifiers, self.updates
             )
             meta_optimizer.step()
 
@@ -58,11 +61,11 @@ class MetaLearning:
                     break
         self.meta_model.learner.load_state_dict(torch.load(model_path))
 
-    def testing(self, support_loaders, query_loaders, languages):
+    def testing(self, support_loaders, query_loaders, identifiers):
         logger.info('---------- Meta testing starts here ----------')
-        for support, query, lang in zip(
-                support_loaders, query_loaders, languages
+        for support, query, idx in zip(
+                support_loaders, query_loaders, identifiers
         ):
-            self.meta_model([support], [query], [lang], self.updates)
+            self.meta_model([support], [query], [idx], self.updates)
             if self.updates > 1:
                 logger.info('')
