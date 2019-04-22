@@ -24,8 +24,8 @@ CONFIG = {
     'num_shots': 100,
     'num_updates': 1,
     'num_test_samples': 1500,
-    'num_meta_epochs': 5,
-    'early_stopping': 2,
+    'num_meta_epochs': 1000,
+    'early_stopping': 10,
     'data_files': os.path.join(
         'data_pos_tagging', 'dataset.{language}.pkl'
     ),

@@ -79,7 +79,8 @@ class POSMetaModel(nn.Module):
                     param.grad = new_param.grad
         # Average the accumulated gradients
         for param in self.learner.parameters():
-            param.grad /= len(accuracies)
+            if param.requires_grad:
+                param.grad /= len(accuracies)
         return query_losses, accuracies
 
     def load_embeddings(self, language):
