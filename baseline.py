@@ -18,6 +18,7 @@ class Baseline:
             self.baseline_model = POSBaseModel(config)
         if 'abuse' in config['meta_model']:
             self.baseline_model = AbuseBaseModel(config)
+        logger.info('Baseline instantiated')
 
     def training(self, support_loaders, query_loaders, languages):
         for support, query, language in zip(

@@ -22,7 +22,7 @@ class AbuseMetaModel(nn.Module):
         self.learner_loss = nn.CrossEntropyLoss()
         self.learner_lr = config.get('learner_lr', 1e-3)
         self.learner = RNNClassificationModel(
-            config['learner_params'], config['embeddings'], True
+            config['learner_params'], config['embeddings'], embeds_grad=True
         )
         if config['trained_learner']:
             self.learner.load_state_dict(torch.load(
@@ -72,4 +72,7 @@ class AbuseMetaModel(nn.Module):
                     param.grad += new_param.grad
                 elif param.requires_grad:
                     param.grad = new_param.grad
+        # Average the accumulated gradients
+        for param in self.learner.parameters():
+            param.grad /= len(accuracies)
         return query_losses, accuracies

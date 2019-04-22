@@ -21,16 +21,17 @@ class MetaLearning:
         self.meta_epochs = config['num_meta_epochs']
         self.early_stopping = config['early_stopping']
         self.meta_lr = config.get('meta_lr', 1e-3)
-        self.meta_lr_decay = config.get('meta_lr_decay', 0.0)
+        self.meta_weight_decay = config.get('meta_weight_decay', 0.0)
         if 'pos' in config['meta_model']:
             self.meta_model = POSMetaModel(config)
         if 'abuse' in config['meta_model']:
             self.meta_model = AbuseMetaModel(config)
+        logger.info('Meta learner instantiated')
 
     def training(self, support_loaders, query_loaders, identifiers):
         meta_optimizer = optim.Adam(
             self.meta_model.learner.parameters(), lr=self.meta_lr,
-            weight_decay=self.meta_lr_decay
+            weight_decay=self.meta_weight_decay
         )
         best_loss = float('inf')
         patience = 0

@@ -26,7 +26,7 @@ CONFIG = {
     'trained_learner': None,
     'learner_lr': 1e-2,
     'meta_lr': 1e-3,
-    'meta_lr_decay': 1e-4,
+    'meta_weight_decay': 1e-4,
     'num_shots': 10,
     'num_updates': 5,
     'num_test_samples': 1500,
