@@ -32,6 +32,6 @@ class Baseline:
         for support, query, lang in zip(
                 support_loaders, query_loaders, languages
         ):
-            self.baseline_model(support, query, lang, self.updates*10)
+            self.baseline_model(support, query, lang, self.updates+10)
             if self.updates > 1:
                 logger.info('')

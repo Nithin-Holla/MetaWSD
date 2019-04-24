@@ -45,9 +45,9 @@ class MetaLearning:
             )
             meta_optimizer.step()
 
-            loss_value = torch.sum(torch.Tensor(losses)).item()
+            loss_value = torch.mean(torch.Tensor(losses)).item()
             accuracy = sum(accuracies) / len(accuracies)
-            logger.info('Meta epoch {}: loss = {:.5f} accuracy = {:.5f}'.format(
+            logger.info('Meta epoch {}:\tavg loss={:.5f}\tavg accuracy={:.5f}'.format(
                 epoch + 1, loss_value, accuracy
             ))
             if loss_value <= best_loss:
@@ -69,6 +69,6 @@ class MetaLearning:
         for support, query, idx in zip(
                 support_loaders, query_loaders, identifiers
         ):
-            self.meta_model([support], [query], [idx], self.updates*10)
+            self.meta_model([support], [query], [idx], self.updates+10)
             if self.updates > 1:
                 logger.info('')
