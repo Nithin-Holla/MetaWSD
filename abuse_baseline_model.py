@@ -19,9 +19,9 @@ class AbuseBaseModel(nn.Module):
         super(AbuseBaseModel, self).__init__()
         self.base = config['base']
         self.early_stopping = config['early_stopping']
-        self.learner_loss = nn.CrossEntropyLoss()
-        self.learner_lr = config.get('meta_lr', 1e-3)
-        self.learner_lr_decay = config.get('meta_lr_decay', 0.0)
+        self.loss_fn = nn.CrossEntropyLoss()
+        self.lr = config.get('meta_lr', 1e-3)
+        self.weight_decay = config.get('meta_weight_decay', 0.0)
         self.learner = RNNClassificationModel(
             config['learner_params'], config['embeddings'], True
         )
@@ -32,36 +32,50 @@ class AbuseBaseModel(nn.Module):
 
     def forward(self, train_loader, test_loader, dataset, updates=1):
         optimizer = optim.Adam(
-            self.learner.parameters(), lr=self.learner_lr,
-            weight_decay=self.learner_lr_decay
+            self.learner.parameters(), lr=self.lr,
+            weight_decay=self.weight_decay
         )
         best_loss = float('inf')
         best_model = None
         patience = 0
         for epoch in range(updates):
             self.learner.train()
+            num_correct, num_total, train_loss = 0, 0, 0.0
             for batch_x, batch_y in train_loader:
                 optimizer.zero_grad()
                 output = self.learner(batch_x)
-                loss = self.learner_loss(output, batch_y)
+                loss = self.loss_fn(output, batch_y)
                 loss.backward()
                 optimizer.step()
-            self.learner.eval()
-            num_correct, num_total, total_loss = 0, 0, 0.0
-            for batch_x, batch_y in test_loader:
-                output = self.learner(batch_x)
-                loss = self.learner_loss(output, batch_y)
-                total_loss += loss.item()
+                train_loss += loss.item()
                 num_correct += torch.eq(
                     output.max(-1)[1], batch_y
                 ).sum().item()
                 num_total += batch_y.size()[0]
-            logger.info('Dataset {}: loss = {:.5f} accuracy = {:.5f}'.format(
-                dataset, total_loss, 1.0 * num_correct / num_total
-            ))
-            if total_loss < best_loss:
+            train_accuracy = 1.0 * num_correct / num_total
+            self.learner.eval()
+            num_correct, num_total, test_loss = 0, 0, 0.0
+            for batch_x, batch_y in test_loader:
+                output = self.learner(batch_x)
+                loss = self.loss_fn(output, batch_y)
+                test_loss += loss.item()
+                num_correct += torch.eq(
+                    output.max(-1)[1], batch_y
+                ).sum().item()
+                num_total += batch_y.size()[0]
+            test_accuracy = 1.0 * num_correct / num_total
+            logger.info(
+                (
+                    'Dataset {}:\ttrain loss={:.5f}\ttest loss={:.5f}\t'
+                    'train accuracy={:.5f}\ttest accuracy={:.5f}'
+                ).format(
+                    dataset, train_loss, test_loss,
+                    train_accuracy, test_accuracy
+                )
+            )
+            if test_loss < best_loss:
                 patience = 0
-                best_loss = total_loss
+                best_loss = test_loss
                 best_model = copy.deepcopy(self.learner)
             else:
                 patience += 1
