@@ -24,14 +24,14 @@ CONFIG = {
         'embed_dim': 300,
     },
     'trained_learner': None,
-    'learner_lr': 1e-2,
+    'learner_lr': 1e-1,
     'meta_lr': 1e-3,
     'meta_weight_decay': 1e-4,
     'num_shots': 10,
-    'num_updates': 5,
+    'num_updates': 1,
     'num_test_samples': 1500,
-    'num_meta_epochs': 1000,
-    'early_stopping': 10,
+    'num_meta_epochs': 100,
+    'early_stopping': 5,
     'data_files': os.path.join(
         'data_abuse', 'dataset.{identifier}.csv'
     ),
@@ -43,13 +43,20 @@ CONFIG = {
 
 
 class DataLoader(data.Dataset):
-    def __init__(self, samples, classes):
+    def __init__(self, samples, classes, pad_value=0):
         super(DataLoader, self).__init__()
-        self.samples = samples
-        self.classes = classes
+        lengths = [len(sample) for sample in samples]
+        triplets = zip(samples, classes, lengths)
+        triplets = sorted(triplets, key=lambda x: x[2], reverse=True)
+        samples, classes, lengths = zip(*triplets)
+        for i in range(len(lengths)):
+            samples[i].extend([pad_value] * (lengths[0] - lengths[i]))
+        self.samples = torch.LongTensor(samples)
+        self.classes = torch.LongTensor(classes)
+        self.lengths = torch.LongTensor(lengths)
 
     def __getitem__(self, index):
-        return self.samples[index], self.classes[index]
+        return self.samples[index], self.classes[index], self.lengths[index]
 
     def __len__(self):
         return len(self.classes)
@@ -79,42 +86,27 @@ def read_dataset(identifier, vocab):
     return samples, classes
 
 
-def produce_loaders(samples, classes, vocab):
+def produce_loaders(samples, classes, training=True):
+    num_test_samples = CONFIG['num_test_samples']
+    if training:
+        num_test_samples = CONFIG['num_shots']
     x = [[], []]
-    max_len = 0
-    required_samples = CONFIG['num_shots'] + CONFIG['num_test_samples']
+    max_len = 250
+    required_num = CONFIG['num_shots'] + num_test_samples
     for sample, clazz in zip(samples, classes):
-        if len(sample) > 100 or len(x[clazz]) == required_samples:
+        if len(sample) > max_len or len(x[clazz]) == required_num:
             continue
         x[clazz].append(sample)
-        max_len = max(len(sample), max_len)
-    for i in range(len(x[0])):
-        while len(x[0][i]) < max_len:
-            x[0][i].append(vocab['<PAD>'])
-        while len(x[1][i]) < max_len:
-            x[1][i].append(vocab['<PAD>'])
     support = DataLoader(
-        torch.LongTensor(
-            x[0][:CONFIG['num_shots']] + x[1][:CONFIG['num_shots']]
-        ),
-        torch.LongTensor(
-            [0] * CONFIG['num_shots'] + [1] * CONFIG['num_shots']
-        ),
+        x[0][:CONFIG['num_shots']] + x[1][:CONFIG['num_shots']],
+        [0]*CONFIG['num_shots'] + [1]*CONFIG['num_shots']
     )
     query = DataLoader(
-        torch.LongTensor(
-            x[0][CONFIG['num_shots']:] + x[1][CONFIG['num_shots']:]
-        ),
-        torch.LongTensor(
-            [0] * CONFIG['num_test_samples'] + [1] * CONFIG['num_test_samples']
-        ),
+        x[0][CONFIG['num_shots']:] + x[1][CONFIG['num_shots']:],
+        [0]*num_test_samples + [1]*num_test_samples
     )
-    support_loader = data.DataLoader(
-        support, batch_size=2*CONFIG['num_shots']
-    )
-    query_loader = data.DataLoader(
-        query, batch_size=2*CONFIG['num_test_samples']
-    )
+    support_loader = data.DataLoader(support, batch_size=2*CONFIG['num_shots'])
+    query_loader = data.DataLoader(query, batch_size=2*num_test_samples)
     return support_loader, query_loader
 
 
@@ -146,22 +138,22 @@ if __name__ == "__main__":
     datasets = [
         'detox_attack', 'detox_toxicity', 'waseem_hovy'
     ]
-    vocabulary = load_vocab_and_embeddings()
+    train_sets = {'detox_attack', 'detox_toxicity'}
 
+    vocabulary = load_vocab_and_embeddings()
     support_loaders = []
     query_loaders = []
     for dataset in datasets:
         a, b = read_dataset(dataset, vocabulary)
-        s, q = produce_loaders(a, b, vocabulary)
+        s, q = produce_loaders(a, b, dataset in train_sets)
         support_loaders.append(s)
         query_loaders.append(q)
     logger.info('{} data loaders prepared'.format(len(datasets)))
 
-    train_set = {'detox_attack', 'detox_toxicity'}
     train_supports, train_queries, train_datasets = [], [], []
     test_supports, test_queries, test_datasets = [], [], []
     for d in range(len(datasets)):
-        if datasets[d] in train_set:
+        if datasets[d] in train_sets:
             train_supports.append(support_loaders[d])
             train_queries.append(query_loaders[d])
             train_datasets.append(datasets[d])

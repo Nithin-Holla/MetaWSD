@@ -40,10 +40,10 @@ class AbuseBaseModel(nn.Module):
         patience = 0
         for epoch in range(updates):
             self.learner.train()
-            num_correct, num_total, train_loss = 0, 0, 0.0
-            for batch_x, batch_y in train_loader:
+            num_correct, num_total, train_loss = 0.0, 0.0, 0.0
+            for batch_x, batch_y, batch_l in train_loader:
                 optimizer.zero_grad()
-                output = self.learner(batch_x)
+                output = self.learner(batch_x, batch_l)
                 loss = self.loss_fn(output, batch_y)
                 loss.backward()
                 optimizer.step()
@@ -52,18 +52,18 @@ class AbuseBaseModel(nn.Module):
                     output.max(-1)[1], batch_y
                 ).sum().item()
                 num_total += batch_y.size()[0]
-            train_accuracy = 1.0 * num_correct / num_total
+            train_accuracy = num_correct / num_total
             self.learner.eval()
-            num_correct, num_total, test_loss = 0, 0, 0.0
-            for batch_x, batch_y in test_loader:
-                output = self.learner(batch_x)
+            num_correct, num_total, test_loss = 0.0, 0.0, 0.0
+            for batch_x, batch_y, batch_l in test_loader:
+                output = self.learner(batch_x, batch_l)
                 loss = self.loss_fn(output, batch_y)
                 test_loss += loss.item()
                 num_correct += torch.eq(
                     output.max(-1)[1], batch_y
                 ).sum().item()
                 num_total += batch_y.size()[0]
-            test_accuracy = 1.0 * num_correct / num_total
+            test_accuracy = num_correct / num_total
             logger.info(
                 (
                     'Dataset {}:\ttrain loss={:.5f}\ttest loss={:.5f}\t'

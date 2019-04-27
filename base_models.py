@@ -1,4 +1,5 @@
 from torch import nn
+from torch.nn.utils.rnn import pack_padded_sequence
 
 import numpy
 import os
@@ -102,8 +103,9 @@ class RNNClassificationModel(nn.Module):
             elif 'weight' in name and 'hh' in name:
                 nn.init.orthogonal_(param)
 
-    def forward(self, input_tensor):
+    def forward(self, input_tensor, lengths):
         embeds = self.embedding(input_tensor)
+        embeds = pack_padded_sequence(embeds, lengths, batch_first=True)
         _, h_n = self.gru(embeds)
         h_n = self.tanh(h_n)
         dropout_1 = self.dropout(h_n[0])
