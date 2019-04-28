@@ -27,9 +27,9 @@ CONFIG = {
     'learner_lr': 1e-1,
     'meta_lr': 1e-3,
     'meta_weight_decay': 1e-4,
-    'num_shots': 10,
+    'num_shots': 500,
     'num_updates': 1,
-    'num_test_samples': 1500,
+    'num_test_samples': 500,
     'num_meta_epochs': 100,
     'early_stopping': 5,
     'data_files': os.path.join(
@@ -40,6 +40,7 @@ CONFIG = {
     ),
     'base': os.path.dirname(os.path.abspath(__file__)),
 }
+USED_SAMPLES = set()
 
 
 class DataLoader(data.Dataset):
@@ -96,6 +97,10 @@ def produce_loaders(samples, classes, training=True):
     for sample, clazz in zip(samples, classes):
         if len(sample) > max_len or len(x[clazz]) == required_num:
             continue
+        hashed = hash(str(sample))
+        if hashed in USED_SAMPLES:
+            continue
+        USED_SAMPLES.add(hashed)
         x[clazz].append(sample)
     support = DataLoader(
         x[0][:CONFIG['num_shots']] + x[1][:CONFIG['num_shots']],
