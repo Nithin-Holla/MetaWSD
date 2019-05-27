@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
 
@@ -103,7 +104,10 @@ class RNNClassificationModel(nn.Module):
             elif 'weight' in name and 'hh' in name:
                 nn.init.orthogonal_(param)
 
-    def forward(self, input_tensor, lengths):
+    def forward(self, input_tensor, lengths, weights=None):
+        if weights:
+            original_weights = OrderedDict(self.named_parameters())
+            self._set_weights(weights)
         embeds = self.embedding(input_tensor)
         embeds = pack_padded_sequence(embeds, lengths, batch_first=True)
         _, h_n = self.gru(embeds)
@@ -114,7 +118,18 @@ class RNNClassificationModel(nn.Module):
             output = self.softmax(output)
         else:
             output = self.sigmoid(output)
+        if weights:
+            self._set_weights(original_weights)
         return output
+
+    def _set_weights(self, weights_dict):
+        for (n, p) in weights_dict.items():
+            if 'embedding' in n:
+                setattr(self.embedding, n.split('.')[-1], p)
+            elif 'gru' in n:
+                setattr(self.gru, n.split('.')[-1], p)
+            elif 'linear' in n:
+                setattr(self.linear, n.split('.')[-1], p)
 
 
 class RNNSequenceModel(nn.Module):
