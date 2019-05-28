@@ -101,7 +101,10 @@ class AbuseMetaModel(nn.Module):
         for support, query, dataset in zip(
                 support_loaders, query_loaders, datasets
         ):
-            fast_weights = OrderedDict(self.learner.named_parameters())
+            fast_weights = OrderedDict(
+                (name, nn.Parameter(param))
+                for (name, param) in self.learner.named_parameters()
+            )
             query_accuracy, query_loss = 0.0, 0.0
             for _ in range(updates):
                 # Within-episode training on support set
@@ -109,8 +112,7 @@ class AbuseMetaModel(nn.Module):
                 num_correct, num_total, support_loss = 0.0, 0.0, 0.0
                 for batch_x, batch_y, batch_l in support:
                     output = self.learner(batch_x, batch_l, fast_weights)
-                    loss = self.loss_fn(output, batch_y) / len(support)
-                    support_loss += loss
+                    support_loss += self.loss_fn(output, batch_y) / len(support)
                     num_correct += torch.eq(
                         output.max(-1)[1], batch_y
                     ).sum().item()
@@ -128,8 +130,7 @@ class AbuseMetaModel(nn.Module):
                 num_correct, num_total, query_loss = 0.0, 0.0, 0.0
                 for batch_x, batch_y, batch_l in query:
                     output = self.learner(batch_x, batch_l, fast_weights)
-                    loss = self.loss_fn(output, batch_y) / len(query)
-                    query_loss += loss
+                    query_loss += self.loss_fn(output, batch_y) / len(query)
                     num_correct += torch.eq(
                         output.max(-1)[1], batch_y
                     ).sum().item()
@@ -144,12 +145,17 @@ class AbuseMetaModel(nn.Module):
                         support_accuracy, query_accuracy
                     )
                 )
-            (query_loss / len(datasets)).backward(create_graph=True)
+            (query_loss / len(datasets)).backward()
             query_losses.append(query_loss)
             query_accuracies.append(query_accuracy)
-        # Calculate second order gradients
-        meta_loss = torch.stack(query_losses).mean()
-        meta_loss.backward()
+            # Accumulate the gradients inside the meta learner
+            for param, new_param in zip(
+                self.learner.parameters(), fast_weights.values()
+            ):
+                if param.grad is not None and param.requires_grad:
+                    param.grad += new_param.grad
+                elif param.requires_grad:
+                    param.grad = new_param.grad
         return query_losses, query_accuracies
 
     def forward(self, support_loaders, query_loaders, datasets, updates=1):
