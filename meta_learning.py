@@ -1,3 +1,4 @@
+from abuse_cnn_meta_model import AbuseCNNMetaModel
 from abuse_meta_model import AbuseMetaModel
 from pos_meta_model import POSMetaModel
 from torch import optim
@@ -24,8 +25,10 @@ class MetaLearning:
         self.meta_weight_decay = config.get('meta_weight_decay', 0.0)
         if 'pos' in config['meta_model']:
             self.meta_model = POSMetaModel(config)
-        if 'abuse' in config['meta_model']:
+        if 'abuse_meta' in config['meta_model']:
             self.meta_model = AbuseMetaModel(config)
+        if 'abuse_cnn_meta' in config['meta_model']:
+            self.meta_model = AbuseCNNMetaModel(config)
         logger.info('Meta learner instantiated')
 
     def training(self, support_loaders, query_loaders, identifiers):

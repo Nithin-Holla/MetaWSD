@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from torch import nn
+from torch.nn import functional as func
 from torch.nn.utils.rnn import pack_padded_sequence
 
 import numpy
@@ -15,7 +16,7 @@ class CNNClassificationModel(nn.Module):
     def __init__(self, model_params, embeds=None, embeds_grad=False):
         super(CNNClassificationModel, self).__init__()
         self.kernel_sizes = model_params['kernel_sizes']
-        self.num_filters = model_params['num_filters']
+        self.num_filters = model_params['hidden_size']
         self.embed_dim = model_params.get('embed_dim', 300)
         self.num_classes = model_params.get('num_classes', 2)
         self.dropout_ratio = model_params.get('dropout_ratio', 0.5)
@@ -37,7 +38,7 @@ class CNNClassificationModel(nn.Module):
                 out_channels=self.num_filters,
                 kernel_size=i
             )
-        self.linear1 = nn.Linear(
+        self.linear = nn.Linear(
             self.num_filters * len(self.kernel_sizes), self.num_classes
         )
 
@@ -51,7 +52,7 @@ class CNNClassificationModel(nn.Module):
             elif 'weight' in name and 'embedding' not in name:
                 nn.init.xavier_uniform_(param)
 
-    def forward(self, input_tensor):
+    def normal_forward(self, input_tensor):
         embeds = self.embedding(input_tensor).permute(0, 2, 1)
         convolution_outputs = []
         for i in self.kernel_sizes:
@@ -59,10 +60,32 @@ class CNNClassificationModel(nn.Module):
             convolution = self.relu(convolution)
             max_pooled = torch.max(convolution, dim=-1)[0]
             convolution_outputs.append(max_pooled)
-        hidden = torch.cat(convolution_outputs, 1)
-        dropout_1 = self.dropout(hidden)
-        output = self.softmax(self.linear1(dropout_1))
-        return hidden, output
+        hidden = torch.cat(tuple(convolution_outputs), 1)
+        dropout = self.dropout(hidden)
+        output = self.softmax(self.linear(dropout))
+        return output
+
+    def forward(self, input_tensor, weights=None, train=True):
+        if weights is None:
+            return self.normal_forward(input_tensor)
+        embeds = func.embedding(
+            input_tensor, weights['embedding.weight'], padding_idx=0,
+        ).permute(0, 2, 1)
+        convolution_outputs = []
+        for i in self.kernel_sizes:
+            convolution = func.conv1d(
+                embeds, weights['convolve.Convolve{}.weight'.format(i)],
+                bias=weights['convolve.Convolve{}.bias'.format(i)]
+            )
+            convolution = func.relu(convolution)
+            max_pooled = torch.max(convolution, dim=-1)[0]
+            convolution_outputs.append(max_pooled)
+        concat = torch.cat(tuple(convolution_outputs), 1)
+        dropout = func.dropout(concat, p=self.dropout.p, training=train)
+        hidden = func.linear(
+            dropout, weights['linear.weight'], weights['linear.bias']
+        )
+        return func.softmax(hidden, dim=-1)
 
 
 class RNNClassificationModel(nn.Module):
@@ -104,10 +127,7 @@ class RNNClassificationModel(nn.Module):
             elif 'weight' in name and 'hh' in name:
                 nn.init.orthogonal_(param)
 
-    def forward(self, input_tensor, lengths, weights=None):
-        if weights:
-            original_weights = OrderedDict(self.named_parameters())
-            self._set_weights(weights)
+    def forward(self, input_tensor, lengths):
         embeds = self.embedding(input_tensor)
         embeds = pack_padded_sequence(embeds, lengths, batch_first=True)
         _, h_n = self.gru(embeds)
@@ -118,18 +138,7 @@ class RNNClassificationModel(nn.Module):
             output = self.softmax(output)
         else:
             output = self.sigmoid(output)
-        if weights:
-            self._set_weights(original_weights)
         return output
-
-    def _set_weights(self, weights_dict):
-        for (n, p) in weights_dict.items():
-            if 'embedding' in n:
-                setattr(self.embedding, n.split('.')[-1], p)
-            elif 'gru' in n:
-                setattr(self.gru, n.split('.')[-1], p)
-            elif 'linear' in n:
-                setattr(self.linear, n.split('.')[-1], p)
 
 
 class RNNSequenceModel(nn.Module):
