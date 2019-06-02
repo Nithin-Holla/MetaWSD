@@ -16,7 +16,7 @@ class CNNClassificationModel(nn.Module):
     def __init__(self, model_params, embeds=None, embeds_grad=False):
         super(CNNClassificationModel, self).__init__()
         self.kernel_sizes = model_params['kernel_sizes']
-        self.num_filters = model_params['hidden_size']
+        self.num_filters = model_params['num_filters']
         self.embed_dim = model_params.get('embed_dim', 300)
         self.num_classes = model_params.get('num_classes', 2)
         self.dropout_ratio = model_params.get('dropout_ratio', 0.5)

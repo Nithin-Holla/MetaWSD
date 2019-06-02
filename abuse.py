@@ -22,6 +22,8 @@ CONFIG = {
         'hidden_size': 128,
         'num_classes': 2,
         'embed_dim': 300,
+        'kernel_sizes': [2, 3, 4],
+        'num_filters': 300,
     },
     'trained_learner': None,
     'learner_lr': 1e-1,
@@ -141,6 +143,7 @@ def load_vocab_and_embeddings():
 
 
 if __name__ == "__main__":
+    print(CONFIG)
     datasets = [
         'detox_attack', 'detox_toxicity', 'waseem_hovy'
     ]
