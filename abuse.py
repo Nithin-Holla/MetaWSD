@@ -1,6 +1,7 @@
+from baseline import Baseline
 from datetime import datetime
 from meta_learning import MetaLearning
-from baseline import Baseline
+from proto_learning import ProtoLearning
 from torch.utils import data
 
 import coloredlogs
@@ -171,10 +172,14 @@ if __name__ == "__main__":
             test_queries.append(query_loaders[d])
             test_datasets.append(datasets[d])
 
-    meta_learner = MetaLearning(CONFIG)
-    meta_learner.training(train_supports, train_queries, train_datasets)
-    meta_learner.testing(test_supports, test_queries, test_datasets)
+    proto_learner = ProtoLearning(CONFIG)
+    proto_learner.training(train_supports, train_queries, train_datasets)
+    proto_learner.testing(test_supports, test_queries, test_datasets)
 
     abuse_base_model = Baseline(CONFIG)
     abuse_base_model.training(train_supports, train_queries, train_datasets)
     abuse_base_model.testing(test_supports, test_queries, test_datasets)
+
+    meta_learner = MetaLearning(CONFIG)
+    meta_learner.training(train_supports, train_queries, train_datasets)
+    meta_learner.testing(test_supports, test_queries, test_datasets)
