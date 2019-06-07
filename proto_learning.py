@@ -2,6 +2,8 @@ from abuse_proto_model import AbuseProtoModel
 
 import coloredlogs
 import logging
+import os
+import torch
 
 logger = logging.getLogger('MetaLearningLog')
 coloredlogs.install(logger=logger, level='DEBUG',
@@ -11,6 +13,8 @@ coloredlogs.install(logger=logger, level='DEBUG',
 
 class ProtoLearning:
     def __init__(self, config):
+        self.base = config['base']
+        self.stamp = config['stamp']
         self.updates = config['num_updates']
         self.epochs = config['num_meta_epochs']
         if 'abuse_meta' in config['meta_model']:
@@ -23,6 +27,10 @@ class ProtoLearning:
         ):
             self.proto_model(support, query, idx, self.epochs)
             logger.info('')
+        model_path = os.path.join(
+            self.base, 'models', 'ProtoModel-{}.h5'.format(self.stamp)
+        )
+        torch.save(self.proto_model.encoder.state_dict(), model_path)
 
     def testing(self, support_loaders, query_loaders, identifiers):
         logger.info('---------- Proto testing starts here ----------')
