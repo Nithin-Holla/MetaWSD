@@ -37,4 +37,4 @@ class ProtoLearning:
         for support, query, idx in zip(
                 support_loaders, query_loaders, identifiers
         ):
-            self.proto_model(support, query, idx, self.updates+10)
+            self.proto_model(support, query, idx, self.updates)
