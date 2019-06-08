@@ -3,7 +3,6 @@ from torch import nn
 from torch import optim
 
 import coloredlogs
-import copy
 import logging
 import os
 import torch
@@ -18,6 +17,7 @@ class AbuseBaseModel(nn.Module):
     def __init__(self, config):
         super(AbuseBaseModel, self).__init__()
         self.base = config['base']
+        self.stamp = config['stamp']
         self.early_stopping = config['early_stopping']
         self.loss_fn = nn.CrossEntropyLoss()
         self.lr = config.get('meta_lr', 1e-3)
@@ -29,24 +29,26 @@ class AbuseBaseModel(nn.Module):
             self.learner.load_state_dict(torch.load(
                 os.path.join(self.base, 'models', config['trained_baseline'])
             ))
-
-    def forward(self, train_loader, test_loader, dataset, updates=1):
-        optimizer = optim.Adam(
+        self.optimizer = optim.Adam(
             self.learner.parameters(), lr=self.lr,
             weight_decay=self.weight_decay
         )
+
+    def forward(self, train_loader, test_loader, dataset, updates=1):
+        model_path = os.path.join(
+            self.base, 'models', 'Baseline-{}.h5'.format(self.stamp)
+        )
         best_loss = float('inf')
-        best_model = None
         patience = 0
         for epoch in range(updates):
             self.learner.train()
             num_correct, num_total, train_loss = 0.0, 0.0, 0.0
             for batch_x, batch_y, batch_l in train_loader:
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 output = self.learner(batch_x, batch_l)
                 loss = self.loss_fn(output, batch_y)
                 loss.backward()
-                optimizer.step()
+                self.optimizer.step()
                 train_loss += loss.item()
                 num_correct += torch.eq(
                     output.max(-1)[1], batch_y
@@ -76,9 +78,9 @@ class AbuseBaseModel(nn.Module):
             if test_loss < best_loss:
                 patience = 0
                 best_loss = test_loss
-                best_model = copy.deepcopy(self.learner)
+                torch.save(self.learner.state_dict(), model_path)
             else:
                 patience += 1
                 if patience == self.early_stopping:
                     break
-        self.learner = copy.deepcopy(best_model)
+        self.learner.load_state_dict(torch.load(model_path))

@@ -3,8 +3,6 @@ from pos_baseline_model import POSBaseModel
 
 import coloredlogs
 import logging
-import os
-import torch
 
 logger = logging.getLogger('BaselineLog')
 coloredlogs.install(logger=logger, level='DEBUG',
@@ -14,8 +12,6 @@ coloredlogs.install(logger=logger, level='DEBUG',
 
 class Baseline:
     def __init__(self, config):
-        self.base = config['base']
-        self.stamp = config['stamp']
         self.updates = config['num_updates']
         self.epochs = config['num_meta_epochs']
         if 'pos' in config['meta_model']:
@@ -30,10 +26,6 @@ class Baseline:
         ):
             self.baseline_model(support, query, language, self.epochs)
             logger.info('')
-        model_path = os.path.join(
-            self.base, 'models', 'Baseline-{}.h5'.format(self.stamp)
-        )
-        torch.save(self.baseline_model.learner.state_dict(), model_path)
 
     def testing(self, support_loaders, query_loaders, languages):
         logger.info('---------- Baseline testing starts here ----------')
