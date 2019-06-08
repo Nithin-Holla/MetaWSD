@@ -5,7 +5,7 @@ import logging
 import os
 import torch
 
-logger = logging.getLogger('MetaLearningLog')
+logger = logging.getLogger('ProtoLearningLog')
 coloredlogs.install(logger=logger, level='DEBUG',
                     fmt='%(asctime)s - %(name)s - %(levelname)s'
                         ' - %(message)s')
