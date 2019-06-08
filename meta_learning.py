@@ -73,5 +73,4 @@ class MetaLearning:
                 support_loaders, query_loaders, identifiers
         ):
             self.meta_model([support], [query], [idx], self.updates+10)
-            if self.updates > 1:
-                logger.info('')
+            logger.info('')
