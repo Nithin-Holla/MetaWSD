@@ -112,8 +112,6 @@ class RNNClassificationModel(nn.Module):
         self.linear = nn.Linear(self.hidden, self.num_classes)
 
         self.dropout = nn.Dropout(p=self.dropout_ratio)
-        self.softmax = nn.Softmax(-1)
-        self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
 
         for name, param in self.named_parameters():
@@ -133,10 +131,6 @@ class RNNClassificationModel(nn.Module):
         h_n = self.tanh(h_n)
         dropout_1 = self.dropout(h_n[0])
         output = self.linear(dropout_1)
-        if output.size()[-1] > 1:
-            output = self.softmax(output)
-        else:
-            output = self.sigmoid(output)
         return output
 
 
