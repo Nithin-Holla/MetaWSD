@@ -34,8 +34,8 @@ CONFIG = {
     'num_shots': 10,
     'num_updates': 1,
     'num_test_samples': 500,
-    'num_meta_epochs': 100,
-    'early_stopping': 5,
+    'num_meta_epochs': 2,
+    'early_stopping': 1,
     'data_files': os.path.join(
         'data_abuse', 'dataset.{identifier}.csv'
     ),
@@ -146,7 +146,11 @@ def load_vocab_and_embeddings():
 if __name__ == "__main__":
     print(CONFIG)
     datasets = [
-        'detox_attack', 'detox_toxicity', 'waseem_hovy'
+        'detox_attack', 'detox_toxicity', 'detox_attack', 'detox_toxicity',
+        'detox_attack', 'detox_toxicity', 'detox_attack', 'detox_toxicity',
+        'detox_attack', 'detox_toxicity', 'detox_attack', 'detox_toxicity',
+        'detox_attack', 'detox_toxicity', 'detox_attack', 'detox_toxicity',
+        'waseem_hovy'
     ]
     train_sets = {'detox_attack', 'detox_toxicity'}
 

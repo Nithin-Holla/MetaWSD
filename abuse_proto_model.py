@@ -3,11 +3,9 @@ from torch import nn
 from torch import optim
 
 import coloredlogs
-import copy
 import logging
 import os
 import torch
-import torch.nn.functional as func
 
 logger = logging.getLogger('Log')
 coloredlogs.install(logger=logger, level='DEBUG',
@@ -30,61 +28,59 @@ class AbuseProtoModel(nn.Module):
             self.encoder.load_state_dict(torch.load(
                 os.path.join(self.base, 'models', config['trained_learner'])
             ))
-
-    def forward(self, support_loader, query_loader, dataset, updates=1):
-        optimizer = optim.Adam(
+        self.optimizer = optim.Adam(
             self.encoder.parameters(), lr=self.lr,
             weight_decay=self.weight_decay
         )
-        best_loss = float('inf')
-        best_model = None
-        patience = 0
-        for epoch in range(updates):
-            self.encoder.train()
-            optimizer.zero_grad()
-            x, y, l = [], [], []
-            for batch_x, batch_y, batch_l in support_loader:
-                x.append(batch_x)
-                y.append(batch_y)
-                l.append(batch_l)
-            x = flatten(torch.stack(tuple(x)))
-            y = flatten(torch.stack(tuple(y)))
-            l = flatten(torch.stack(tuple(l)))
-            support = self.encoder(x, l)
-            prototypes = build_prototypes(support, y)
-            # Run on query
-            self.encoder.eval()
-            x, y, l = [], [], []
-            for batch_x, batch_y, batch_l in support_loader:
-                x.append(batch_x)
-                y.append(batch_y)
-                l.append(batch_l)
-            x = flatten(torch.stack(tuple(x)))
-            y = flatten(torch.stack(tuple(y)))
-            l = flatten(torch.stack(tuple(l)))
-            query = self.encoder(x, l)
-            output = normalized_distances(prototypes, query)
-            loss = self.loss_fn(output, y)
-            loss.backward()
-            optimizer.step()
-            # Calculate metrics
-            num_correct = torch.eq(output.max(-1)[1], y).sum().item()
-            num_total = y.size()[0]
-            accuracy = num_correct / num_total
-            logger.info(
-                (
-                    'Dataset {}:\tloss={:.5f}\taccuracy={:.5f}'
-                ).format(dataset, loss, accuracy)
-            )
-            if loss < best_loss:
-                patience = 0
-                best_loss = loss
-                best_model = copy.deepcopy(self.encoder)
-            else:
-                patience += 1
-                if patience == self.early_stopping:
-                    break
-        self.encoder = copy.deepcopy(best_model)
+
+    def forward(self, support_loaders, query_loaders, datasets, updates=1):
+        query_losses = []
+        query_accuracies = []
+        for support_loader, query_loader, dataset in zip(
+                support_loaders, query_loaders, datasets
+        ):
+            query_loss = 0.0
+            query_accuracy = 0.0
+            for epoch in range(updates):
+                self.encoder.train()
+                self.optimizer.zero_grad()
+                x, y, l = [], [], []
+                for batch_x, batch_y, batch_l in support_loader:
+                    x.append(batch_x)
+                    y.append(batch_y)
+                    l.append(batch_l)
+                x = flatten(torch.stack(tuple(x)))
+                y = flatten(torch.stack(tuple(y)))
+                l = flatten(torch.stack(tuple(l)))
+                support = self.encoder(x, l)
+                prototypes = build_prototypes(support, y)
+                # Run on query
+                self.encoder.eval()
+                x, y, l = [], [], []
+                for batch_x, batch_y, batch_l in query_loader:
+                    x.append(batch_x)
+                    y.append(batch_y)
+                    l.append(batch_l)
+                x = flatten(torch.stack(tuple(x)))
+                y = flatten(torch.stack(tuple(y)))
+                l = flatten(torch.stack(tuple(l)))
+                query = self.encoder(x, l)
+                output = normalized_distances(prototypes, query)
+                query_loss = self.loss_fn(output, y)
+                query_loss.backward()
+                self.optimizer.step()
+                # Calculate metrics
+                num_correct = torch.eq(output.max(-1)[1], y).sum().item()
+                num_total = y.size()[0]
+                query_accuracy = num_correct / num_total
+                logger.info(
+                    (
+                        'Dataset {}:\tloss={:.5f}\taccuracy={:.5f}'
+                    ).format(dataset, query_loss, query_accuracy)
+                )
+            query_losses.append(query_loss)
+            query_accuracies.append(query_accuracy)
+        return query_losses, query_accuracies
 
 
 def flatten(t):
@@ -107,5 +103,5 @@ def normalized_distances(prototypes, q):
     d = torch.stack(
         tuple([q.sub(p).pow(2).sum(dim=-1) for p in prototypes]),
         dim=-1
-    ).neg()
-    return func.softmax(d, dim=-1)
+    )
+    return d.neg()
