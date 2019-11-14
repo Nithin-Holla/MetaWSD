@@ -26,7 +26,7 @@ class ProtoLearning:
         best_loss = float('inf')
         patience = 0
         model_path = os.path.join(
-            self.base, 'models', 'ProtoModel-{}.h5'.format(self.stamp)
+            self.base, 'saved_models', 'ProtoModel-{}.h5'.format(self.stamp)
         )
         for epoch in range(self.meta_epochs):
             losses, accuracies = self.proto_model(

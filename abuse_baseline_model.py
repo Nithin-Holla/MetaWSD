@@ -27,7 +27,7 @@ class AbuseBaseModel(nn.Module):
         )
         if config.get('trained_baseline', None):
             self.learner.load_state_dict(torch.load(
-                os.path.join(self.base, 'models', config['trained_baseline'])
+                os.path.join(self.base, 'saved_models', config['trained_baseline'])
             ))
         self.optimizer = optim.Adam(
             self.learner.parameters(), lr=self.lr,
@@ -36,7 +36,7 @@ class AbuseBaseModel(nn.Module):
 
     def forward(self, train_loader, test_loader, dataset, updates=1):
         model_path = os.path.join(
-            self.base, 'models', 'Baseline-{}.h5'.format(self.stamp)
+            self.base, 'saved_models', 'Baseline-{}.h5'.format(self.stamp)
         )
         best_loss = float('inf')
         patience = 0

@@ -26,7 +26,7 @@ class AbuseProtoModel(nn.Module):
         )
         if config['trained_learner']:
             self.encoder.load_state_dict(torch.load(
-                os.path.join(self.base, 'models', config['trained_learner'])
+                os.path.join(self.base, 'saved_models', config['trained_learner'])
             ))
         self.optimizer = optim.Adam(
             self.encoder.parameters(), lr=self.lr,

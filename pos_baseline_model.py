@@ -25,7 +25,7 @@ class POSBaseModel(nn.Module):
         self.learner = RNNSequenceModel(config['learner_params'])
         if config.get('trained_baseline', None):
             self.learner.load_state_dict(torch.load(
-                os.path.join(self.base, 'models', config['trained_baseline'])
+                os.path.join(self.base, 'saved_models', config['trained_baseline'])
             ))
 
     def forward(self, train_loader, test_loader, language, updates=1):

@@ -26,7 +26,7 @@ class AbuseMetaModel(nn.Module):
         )
         if config['trained_learner']:
             self.learner.load_state_dict(torch.load(
-                os.path.join(self.base, 'models', config['trained_learner'])
+                os.path.join(self.base, 'saved_models', config['trained_learner'])
             ))
 
     def forward(self, support_loaders, query_loaders, datasets, updates=1):

@@ -13,8 +13,8 @@ env/
 *.pyc
 resources/*.txt
 resources/*.jar
-Models/
 Misc/
 data_*
 embeddings/
 logs/
+saved_models/
