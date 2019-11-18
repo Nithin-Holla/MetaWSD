@@ -1,4 +1,4 @@
-from base_models import RNNSequenceModel
+from old.base_models import RNNSequenceModel
 from torch import nn
 from torch import optim
 

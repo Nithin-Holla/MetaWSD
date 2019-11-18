@@ -2,7 +2,7 @@ from torch import nn
 
 
 class RNNSequenceModel(nn.Module):
-    def __init__(self, model_params, embeds=None, embeds_grad=False):
+    def __init__(self, model_params):
         super(RNNSequenceModel, self).__init__()
         self.hidden = model_params['hidden_size']
         self.embed_dim = model_params['embed_dim']

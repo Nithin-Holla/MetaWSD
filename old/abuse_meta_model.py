@@ -1,4 +1,4 @@
-from base_models import RNNClassificationModel
+from old.base_models import RNNClassificationModel
 from torch import nn
 from torch import optim
 

@@ -1,4 +1,4 @@
-from base_models import CNNClassificationModel
+from old.base_models import CNNClassificationModel
 from collections import OrderedDict
 from torch import nn
 

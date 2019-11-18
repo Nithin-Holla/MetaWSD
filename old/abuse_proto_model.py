@@ -1,4 +1,4 @@
-from base_models import RNNEncoder
+from old.base_models import RNNEncoder
 from torch import nn
 from torch import optim
 

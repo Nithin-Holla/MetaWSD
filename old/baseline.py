@@ -1,5 +1,5 @@
-from abuse_baseline_model import AbuseBaseModel
-from pos_baseline_model import POSBaseModel
+from old.abuse_baseline_model import AbuseBaseModel
+from old.pos_baseline_model import POSBaseModel
 
 import coloredlogs
 import logging

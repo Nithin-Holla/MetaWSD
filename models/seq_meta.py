@@ -25,29 +25,35 @@ class SeqMetaModel(nn.Module):
         self.learner = RNNSequenceModel(config['learner_params'])
         self.num_outputs = config['learner_params']['num_outputs']
         self.num_episodes = config['num_episodes']
+        self.proto_maml = config['proto_maml']
 
         options_file = "https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
         weight_file = "https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
         self.elmo = Elmo(options_file, weight_file, num_output_representations=1, dropout=0)
+        self.elmo.requires_grad = False
+
+        self.output_layer = {}
+        for task in config['learner_params']['num_outputs']:
+            self.output_layer[task] = nn.Linear(self.learner.hidden // 2, config['learner_params']['num_outputs'][task])
+        self.output_layer = nn.ModuleDict(self.output_layer)
+
+        if config.get('trained_learner', False):
+            self.learner.load_state_dict(torch.load(
+                os.path.join(self.base_path, 'saved_models', config['trained_learner'])
+            ))
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.to(self.device)
         self.elmo.to(self.device)
 
-        self.output_layer = {}
-        for task in config['learner_params']['num_outputs']:
-            self.output_layer[task] = nn.Linear(self.learner.hidden // 2, config['learner_params']['num_outputs'][task])
-            self.output_layer[task] = self.output_layer[task].to(self.device)
-
-        if config['trained_learner']:
-            self.learner.load_state_dict(torch.load(
-                os.path.join(self.base_path, 'saved_models', config['trained_learner'])
-            ))
+        if self.proto_maml:
+            logger.info('Initialization of output layer weights as per prototypical networks turned on')
 
     def vectorize(self, batch_x, batch_y):
-        char_ids = batch_to_ids(batch_x)
-        char_ids = char_ids.to(self.device)
-        batch_x = self.elmo(char_ids)['elmo_representations'][0]
+        with torch.no_grad():
+            char_ids = batch_to_ids(batch_x)
+            char_ids = char_ids.to(self.device)
+            batch_x = self.elmo(char_ids)['elmo_representations'][0]
         batch_y = torch.tensor(batch_y).to(self.device)
         return batch_x, batch_y
 
@@ -57,6 +63,10 @@ class SeqMetaModel(nn.Module):
         for episode in episodes:
             learner = copy.deepcopy(self.learner)
             num_correct, num_total, query_loss = 0, 0, 0.0
+
+            if self.proto_maml:
+                self._initialize_with_proto_weights(episode.support_loader, episode.task)
+
             for _ in range(updates):
                 for batch_x, batch_y in episode.support_loader:
                     batch_x, batch_y = self.vectorize(batch_x, batch_y)
@@ -66,9 +76,8 @@ class SeqMetaModel(nn.Module):
                         output.view(output.size()[0] * output.size()[1], -1),
                         batch_y.view(-1)
                     )
-                    params = [
-                        p for p in learner.parameters() if p.requires_grad
-                    ]
+                    params = [p for p in learner.parameters() if p.requires_grad] + \
+                             [p for p in self.output_layer[episode.task].parameters() if p.requires_grad]
                     grads = torch.autograd.grad(loss, params)
                     for param, grad in zip(params, grads):
                         param.data -= grad * self.learner_lr
@@ -108,3 +117,30 @@ class SeqMetaModel(nn.Module):
             if param.requires_grad:
                 param.grad /= len(accuracies)
         return query_losses, accuracies
+
+    def _initialize_with_proto_weights(self, support_loader, task):
+        support_repr, support_label = [], []
+        for batch_x, batch_y in support_loader:
+            batch_x, batch_y = self.vectorize(batch_x, batch_y)
+            batch_x_repr = self.learner(batch_x)
+            support_repr.append(batch_x_repr)
+            support_label.append(batch_y)
+
+        prototypes = self._build_prototypes(support_repr, support_label, self.num_outputs[task])
+
+        self.output_layer[task].weight.data = 2 * prototypes
+        self.output_layer[task].bias.data = torch.norm(prototypes, dim=1)
+
+    def _build_prototypes(self, data_repr, data_label, num_outputs):
+        n_dim = data_repr[0].shape[2]
+        data_repr = torch.cat(tuple([x.view(-1, n_dim) for x in data_repr]), dim=0)
+        data_label = torch.cat(tuple([y.view(-1) for y in data_label]), dim=0)
+
+        prototypes = torch.zeros((num_outputs, n_dim), device=self.device)
+
+        for c in range(num_outputs):
+            idx = torch.nonzero(data_label == c).view(-1)
+            if idx.nelement() != 0:
+                prototypes[c] = torch.mean(data_repr[idx], dim=0)
+
+        return prototypes

@@ -1,6 +1,6 @@
 from datetime import datetime
-from meta_learning import MetaLearning
-from baseline import Baseline
+from old.meta_learning import MetaLearning
+from old.baseline import Baseline
 from torch.utils import data
 
 import coloredlogs
