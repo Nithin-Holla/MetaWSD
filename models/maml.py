@@ -67,4 +67,6 @@ class MAML:
     def testing(self, test_episodes):
         logger.info('---------- Meta testing starts here ----------')
         for episode in test_episodes:
-            self.meta_model([episode], self.updates+10)
+            for epoch in range(self.meta_epochs):
+                logger.info('Meta epoch {}'.format(epoch + 1))
+                self.meta_model([episode], self.updates, testing=True)

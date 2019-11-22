@@ -1,4 +1,4 @@
-meta_learner: proto_net
+meta_learner: baseline
 meta_model: seq_meta_model
 learner_params:
   hidden_size: 128
@@ -23,3 +23,4 @@ num_episodes:
   metaphor: 1
 num_meta_epochs: 20
 early_stopping: 10
+proto_maml: false

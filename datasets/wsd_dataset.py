@@ -36,7 +36,8 @@ class WSDDataset(data.Dataset):
                     if 'sense' in child.attrib:
                         sense_tag = self.sense_vocab[child.attrib['sense']]
                     else:
-                        sense_tag = self.sense_vocab[token.lower()]
+                        # sense_tag = self.sense_vocab[token.lower()]
+                        sense_tag = self.sense_vocab['unambiguous']
                     if break_level == 'PARAGRAPH_BREAK':
                         sentences.append(sent)
                         labels.append(lbl)

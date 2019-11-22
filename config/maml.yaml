@@ -3,8 +3,8 @@ meta_model: seq_meta_model
 learner_params:
   hidden_size: 128
   num_outputs:
-    pos: 18
-    wsd: 45596
+    pos: 17
+    wsd: 8229
     metaphor: 2
   embed_dim: 1024
 learner_lr: 0.01
@@ -14,13 +14,13 @@ num_shots:
   metaphor: 64
 num_updates: 1
 num_test_samples:
-  pos: 64
-  wsd: 64
-  metaphor: 64
+  pos: 1024
+  wsd: 1024
+  metaphor: 1024
 num_episodes:
   pos: 1
   wsd: 1
   metaphor: 1
-num_meta_epochs: 5
+num_meta_epochs: 20
 early_stopping: 10
 proto_maml: false

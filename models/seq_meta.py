@@ -1,6 +1,7 @@
 from allennlp.modules import Elmo
 from allennlp.modules.elmo import batch_to_ids
 
+from models import utils
 from models.base_models import RNNSequenceModel
 from torch import nn
 
@@ -57,17 +58,18 @@ class SeqMetaModel(nn.Module):
         batch_y = torch.tensor(batch_y).to(self.device)
         return batch_x, batch_y
 
-    def forward(self, episodes, updates=1):
+    def forward(self, episodes, updates=1, testing=False):
         query_losses = []
         accuracies = []
         for episode in episodes:
             learner = copy.deepcopy(self.learner)
-            num_correct, num_total, query_loss = 0, 0, 0.0
 
             if self.proto_maml:
                 self._initialize_with_proto_weights(episode.support_loader, episode.task)
 
             for _ in range(updates):
+                self.train()
+                learner.train()
                 for batch_x, batch_y in episode.support_loader:
                     batch_x, batch_y = self.vectorize(batch_x, batch_y)
                     output = learner(batch_x)
@@ -82,40 +84,59 @@ class SeqMetaModel(nn.Module):
                     for param, grad in zip(params, grads):
                         param.data -= grad * self.learner_lr
 
-                num_correct, num_total, query_loss = 0, 0, 0.0
+                query_loss = 0.0
+                all_predictions, all_labels = [], []
                 learner.zero_grad()
+
+                if testing:
+                    self.eval()
+                    learner.eval()
+
                 for batch_x, batch_y in episode.query_loader:
                     batch_x, batch_y = self.vectorize(batch_x, batch_y)
                     output = learner(batch_x)
                     output = self.output_layer[episode.task](output)
-                    output = output.view(
-                        output.size()[0] * output.size()[1], -1
-                    )
+                    output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
                     loss = self.learner_loss(output, batch_y)
-                    loss.backward()
-                    query_loss += loss.item()
-                    num_correct += torch.eq(
-                        output.max(-1)[1], batch_y
-                    ).sum().item()
-                    num_total += batch_y.size()[0]
-                logger.info('Task {}: loss = {:.5f} accuracy = {:.5f}'.format(
-                    episode.task, query_loss, 1.0 * num_correct / num_total
-                ))
-            query_losses.append(query_loss)
-            accuracies.append(1.0 * num_correct / num_total)
 
-            for param, new_param in zip(
-                self.learner.parameters(), learner.parameters()
-            ):
-                if param.grad is not None and param.requires_grad:
-                    param.grad += new_param.grad
-                elif param.requires_grad:
-                    param.grad = new_param.grad
+                    if not testing:
+                        loss.backward()
+
+                    query_loss += loss.item()
+
+                    relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
+                    all_predictions.extend(output[relevant_indices].max(-1)[1])
+                    all_labels.extend(batch_y[relevant_indices])
+
+                if episode.task != 'metaphor':
+                    accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                    all_labels, binary=False)
+                else:
+                    accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                    all_labels, binary=True)
+
+                logger.info('Task {}: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, recall = {:.5f}, '
+                            'F1 score = {:.5f}'.format(episode.task, query_loss, accuracy, precision,
+                                                       recall, f1_score))
+            query_losses.append(query_loss)
+            accuracies.append(accuracy)
+
+            if not testing:
+                for param, new_param in zip(
+                    self.learner.parameters(), learner.parameters()
+                ):
+                    if param.grad is not None and param.requires_grad:
+                        param.grad += new_param.grad
+                    elif param.requires_grad:
+                        param.grad = new_param.grad
+
         # Average the accumulated gradients
-        for param in self.learner.parameters():
-            if param.requires_grad:
-                param.grad /= len(accuracies)
+        if not testing:
+            for param in self.learner.parameters():
+                if param.requires_grad:
+                    param.grad /= len(accuracies)
+
         return query_losses, accuracies
 
     def _initialize_with_proto_weights(self, support_loader, task):

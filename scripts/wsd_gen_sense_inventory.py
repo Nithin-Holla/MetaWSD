@@ -15,8 +15,8 @@ def generate_sense_inventory(data_path):
                 token = child.attrib['text'].lower()
                 if 'sense' in child.attrib and child.attrib['sense'] not in sense_inventory[token]:
                     sense_inventory[token].append(child.attrib['sense'])
-                elif token not in sense_inventory[token]:
-                    sense_inventory[token].append(token)
+                # elif token not in sense_inventory[token]:
+                #     sense_inventory[token].append(token)
     return sense_inventory
 
 
@@ -27,7 +27,8 @@ def save_as_json(dict_data, json_file):
 
 def build_sense_vocab(sense_inventory_dict):
     word_to_ix = dict()
-    count = 0
+    word_to_ix['unambiguous'] = 0
+    count = 1
     for word in sense_inventory_dict.keys():
         for sense in sense_inventory_dict[word]:
             if sense not in word_to_ix:

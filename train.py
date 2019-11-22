@@ -12,6 +12,7 @@ from datasets import utils
 from datasets.metaphor_dataset import MetaphorDataset
 from datasets.pos_dataset import POSDataset
 from datasets.wsd_dataset import WSDDataset
+from models.baseline import Baseline
 from models.maml import MAML
 from models.proto_network import PrototypicalNetwork
 
@@ -63,12 +64,18 @@ if __name__ == '__main__':
 
     # Generate episodes for POS tagging
     logger.info('Generating episodes for POS tagging')
-    pos_episodes = utils.generate_episodes_from_split_datasets(train_dataset=pos_train_dataset,
-                                                               test_dataset=pos_test_dataset,
-                                                               n_episodes=config['num_episodes']['pos'],
-                                                               n_support_examples=config['num_shots']['pos'],
-                                                               n_query_examples=config['num_test_samples']['pos'],
-                                                               task='pos')
+    if config['num_test_samples']['pos'] == 'all':
+        pos_episodes = utils.generate_full_query_episode(train_dataset=pos_train_dataset,
+                                                         test_dataset=pos_test_dataset,
+                                                         n_support_examples=config['num_shots']['pos'],
+                                                         task='pos')
+    else:
+        pos_episodes = utils.generate_episodes_from_split_datasets(train_dataset=pos_train_dataset,
+                                                                   test_dataset=pos_test_dataset,
+                                                                   n_episodes=config['num_episodes']['pos'],
+                                                                   n_support_examples=config['num_shots']['pos'],
+                                                                   n_query_examples=config['num_test_samples']['pos'],
+                                                                   task='pos')
     train_episodes.extend(pos_episodes)
     logger.info('Finished generating episodes for POS tagging')
 
@@ -103,20 +110,30 @@ if __name__ == '__main__':
 
     # Generate episodes for metaphor
     logger.info('Generating episodes for metaphor')
-    metaphor_episodes = utils.generate_episodes_from_split_datasets(train_dataset=metaphor_train_dataset,
-                                                                    test_dataset=metaphor_test_dataset,
-                                                                    n_episodes=config['num_episodes']['metaphor'],
-                                                                    n_support_examples=config['num_shots']['metaphor'],
-                                                                    n_query_examples=config['num_test_samples']['metaphor'],
-                                                                    task='metaphor')
+    if config['num_test_samples']['metaphor'] == 'all':
+        metaphor_episodes = utils.generate_full_query_episode(train_dataset=metaphor_train_dataset,
+                                                              test_dataset=metaphor_test_dataset,
+                                                              n_support_examples=config['num_shots']['metaphor'],
+                                                              task='metaphor')
+    else:
+        metaphor_episodes = utils.generate_episodes_from_split_datasets(train_dataset=metaphor_train_dataset,
+                                                                        test_dataset=metaphor_test_dataset,
+                                                                        n_episodes=config['num_episodes']['metaphor'],
+                                                                        n_support_examples=config['num_shots']['metaphor'],
+                                                                        n_query_examples=config['num_test_samples']['metaphor'],
+                                                                        task='metaphor')
     test_episodes.extend(metaphor_episodes)
     logger.info('Finished generating episodes for metaphor')
 
     # Initialize meta learner
     if config['meta_learner'] == 'maml':
         meta_learner = MAML(config)
-    else:
+    elif config['meta_learner'] == 'proto_net':
         meta_learner = PrototypicalNetwork(config)
+    elif config['meta_learner'] == 'baseline':
+        meta_learner = Baseline(config)
+    else:
+        raise Exception('Unsupported model type')
 
     # Meta-training
     meta_learner.training(train_episodes)

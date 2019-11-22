@@ -64,3 +64,13 @@ def generate_episodes_from_single_dataset(dataset, n_episodes, n_support_example
         episode = Episode(support_loader, query_loader, task)
         episodes.append(episode)
     return episodes
+
+
+def generate_full_query_episode(train_dataset, test_dataset, n_support_examples, task):
+    train_indices = list(range(train_dataset.__len__()))
+    random.shuffle(train_indices)
+    train_subset = data.Subset(train_dataset, train_indices[0:n_support_examples])
+    support_loader = data.DataLoader(train_subset, batch_size=32, collate_fn=prepare_batch)
+    query_loader = data.DataLoader(test_dataset, batch_size=32, collate_fn=prepare_batch)
+    episode = Episode(support_loader, query_loader, task)
+    return [episode]
