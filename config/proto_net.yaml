@@ -4,8 +4,8 @@ learner_params:
   hidden_size: 128
   num_outputs:
     pos: 17
-    wsd: 8229
-    metaphor: 2
+    wsd: 44600
+    metaphor: 1
   embed_dim: 1024
 learner_lr: 0.01
 num_shots:
@@ -14,12 +14,13 @@ num_shots:
   metaphor: 64
 num_updates: 1
 num_test_samples:
-  pos: 1024
-  wsd: 1024
-  metaphor: 1024
+  pos: 64
+  wsd: 64
+  metaphor: all
 num_episodes:
-  pos: 1
-  wsd: 1
+  pos: 5
+  wsd: 5
   metaphor: 1
-num_meta_epochs: 20
+num_meta_epochs: 10
 early_stopping: 10
+device: cpu

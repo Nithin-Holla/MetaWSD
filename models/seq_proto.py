@@ -11,6 +11,8 @@ import torch
 
 from models import utils
 from models.base_models import RNNSequenceModel
+from models.loss import BCEWithLogitsLossAndIgnoreIndex
+from models.utils import make_prediction
 
 logger = logging.getLogger('Log')
 coloredlogs.install(logger=logger, level='DEBUG',
@@ -23,7 +25,6 @@ class SeqPrototypicalNetwork(nn.Module):
         super(SeqPrototypicalNetwork, self).__init__()
         self.base_path = config['base_path']
         self.early_stopping = config['early_stopping']
-        self.loss_fn = nn.CrossEntropyLoss(ignore_index=-1)
         self.lr = config.get('meta_lr', 1e-3)
         self.weight_decay = config.get('meta_weight_decay', 0.0)
         self.learner = RNNSequenceModel(config['learner_params'])
@@ -35,6 +36,14 @@ class SeqPrototypicalNetwork(nn.Module):
         self.elmo = Elmo(options_file, weight_file, num_output_representations=1, dropout=0)
         self.elmo.requires_grad = False
 
+        self.loss_fn = {}
+        for task in config['learner_params']['num_outputs']:
+            if task == 'metaphor':
+                self.loss_fn[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
+            else:
+                self.loss_fn[task] = nn.CrossEntropyLoss(ignore_index=-1)
+        self.loss_fn = nn.ModuleDict(self.loss_fn)
+
         if config.get('trained_learner', False):
             self.learner.load_state_dict(torch.load(
                 os.path.join(self.base, 'saved_models', config['trained_learner'])
@@ -43,17 +52,18 @@ class SeqPrototypicalNetwork(nn.Module):
         learner_params = [p for p in self.learner.parameters() if p.requires_grad]
         self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
 
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(config.get('device', 'cpu'))
         self.to(self.device)
         self.elmo.to(self.device)
 
-    def vectorize(self, batch_x, batch_y):
+    def vectorize(self, batch_x, batch_len, batch_y):
         with torch.no_grad():
             char_ids = batch_to_ids(batch_x)
             char_ids = char_ids.to(self.device)
             batch_x = self.elmo(char_ids)['elmo_representations'][0]
+        batch_len = torch.tensor(batch_len).to(self.device)
         batch_y = torch.tensor(batch_y).to(self.device)
-        return batch_x, batch_y
+        return batch_x, batch_len, batch_y
 
     def forward(self, episodes, updates=1, testing=False):
         query_losses = []
@@ -64,26 +74,28 @@ class SeqPrototypicalNetwork(nn.Module):
             for epoch in range(updates):
                 self.train()
                 support_repr, support_label = [], []
-                for batch_x, batch_y in episode.support_loader:
-                    batch_x, batch_y = self.vectorize(batch_x, batch_y)
-                    batch_x_repr = self.learner(batch_x)
+                for batch_x, batch_len, batch_y in episode.support_loader:
+                    batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+                    batch_x_repr = self.learner(batch_x, batch_len)
                     support_repr.append(batch_x_repr)
                     support_label.append(batch_y)
 
                 prototypes = self._build_prototypes(support_repr, support_label, self.num_outputs[episode.task])
 
                 # Run on query
-                if testing:
-                    self.eval()
                 query_loss = 0.0
                 all_predictions, all_labels = [], []
-                for batch_x, batch_y in episode.query_loader:
-                    batch_x, batch_y = self.vectorize(batch_x, batch_y)
-                    batch_x_repr = self.learner(batch_x)
+
+                if testing:
+                    self.eval()
+
+                for batch_x, batch_len, batch_y in episode.query_loader:
+                    batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+                    batch_x_repr = self.learner(batch_x, batch_len)
                     output = self._normalized_distances(prototypes, batch_x_repr)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
-                    loss = self.loss_fn(output, batch_y)
+                    loss = self.loss_fn[episode.task](output, batch_y)
                     query_loss += loss.item()
 
                     if not testing:
@@ -92,8 +104,8 @@ class SeqPrototypicalNetwork(nn.Module):
                         self.optimizer.step()
 
                     relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
-                    all_predictions.extend(output[relevant_indices].max(-1)[1])
-                    all_labels.extend(batch_y[relevant_indices])
+                    all_predictions.extend(make_prediction(output[relevant_indices]).cpu())
+                    all_labels.extend(batch_y[relevant_indices].cpu())
 
                 # Calculate metrics
                 if episode.task != 'metaphor':

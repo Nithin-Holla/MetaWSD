@@ -1,4 +1,5 @@
 from torch import nn
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class RNNSequenceModel(nn.Module):
@@ -12,12 +13,11 @@ class RNNSequenceModel(nn.Module):
             input_size=self.embed_dim,
             hidden_size=self.hidden,
             batch_first=True,
+            bidirectional=True
         )
-        self.linear1 = nn.Linear(self.hidden, self.hidden // 2)
+        self.linear1 = nn.Linear(2 * self.hidden, self.hidden // 2)
 
         self.dropout = nn.Dropout(p=self.dropout_ratio)
-        self.softmax = nn.Softmax(-1)
-        self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
 
         for name, param in self.named_parameters():
@@ -30,9 +30,11 @@ class RNNSequenceModel(nn.Module):
             elif 'weight' in name and 'hh' in name:
                 nn.init.orthogonal_(param)
 
-    def forward(self, input_tensor):
+    def forward(self, input, input_len):
         self.gru.flatten_parameters()
-        hidden, _ = self.gru(input_tensor)
+        packed = pack_padded_sequence(input, input_len, batch_first=True, enforce_sorted=False)
+        hidden, _ = self.gru(packed)
+        hidden, _ = pad_packed_sequence(hidden, batch_first=True)
         hidden = self.tanh(hidden)
         d = self.tanh(self.linear1(hidden))
         dropout = self.dropout(d)

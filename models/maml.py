@@ -1,5 +1,3 @@
-from old.abuse_cnn_meta_model import AbuseCNNMetaModel
-from old.abuse_meta_model import AbuseMetaModel
 from torch import optim
 
 import coloredlogs
@@ -27,10 +25,6 @@ class MAML:
 
         if 'seq_meta' in config['meta_model']:
             self.meta_model = SeqMetaModel(config)
-        if 'abuse_meta' in config['meta_model']:
-            self.meta_model = AbuseMetaModel(config)
-        if 'abuse_cnn_meta' in config['meta_model']:
-            self.meta_model = AbuseCNNMetaModel(config)
 
         logger.info('MAML instantiated')
 

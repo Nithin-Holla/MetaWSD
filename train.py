@@ -54,28 +54,19 @@ if __name__ == '__main__':
     # Paths for POS tagging dataset
     pos_base_path = os.path.join(config['base_path'], '../data/UD_English-EWT/')
     pos_train_path = os.path.join(pos_base_path, 'en_ewt-ud-train.conllu')
-    pos_test_path = os.path.join(pos_base_path, 'en_ewt-ud-test.conllu')
 
     # Create POS tagging train and test dataset
     logger.info('Loading dataset for POS tagging')
     pos_train_dataset = POSDataset(pos_train_path)
-    pos_test_dataset = POSDataset(pos_test_path)
     logger.info('Finished loading the dataset for POS tagging')
 
     # Generate episodes for POS tagging
     logger.info('Generating episodes for POS tagging')
-    if config['num_test_samples']['pos'] == 'all':
-        pos_episodes = utils.generate_full_query_episode(train_dataset=pos_train_dataset,
-                                                         test_dataset=pos_test_dataset,
-                                                         n_support_examples=config['num_shots']['pos'],
-                                                         task='pos')
-    else:
-        pos_episodes = utils.generate_episodes_from_split_datasets(train_dataset=pos_train_dataset,
-                                                                   test_dataset=pos_test_dataset,
-                                                                   n_episodes=config['num_episodes']['pos'],
-                                                                   n_support_examples=config['num_shots']['pos'],
-                                                                   n_query_examples=config['num_test_samples']['pos'],
-                                                                   task='pos')
+    pos_episodes = utils.generate_episodes_from_single_dataset(dataset=pos_train_dataset,
+                                                               n_episodes=config['num_episodes']['pos'],
+                                                               n_support_examples=config['num_shots']['pos'],
+                                                               n_query_examples=config['num_test_samples']['pos'],
+                                                               task='pos')
     train_episodes.extend(pos_episodes)
     logger.info('Finished generating episodes for POS tagging')
 

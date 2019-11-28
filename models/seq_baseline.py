@@ -12,6 +12,9 @@ import logging
 import os
 import torch
 
+from models.loss import BCEWithLogitsLossAndIgnoreIndex, AdaptiveLogSoftmaxWithLossAndIgnoreIndex
+from models.utils import make_prediction
+
 logger = logging.getLogger('Log')
 coloredlogs.install(logger=logger, level='DEBUG',
                     fmt='%(asctime)s - %(name)s - %(levelname)s'
@@ -23,7 +26,6 @@ class SeqBaselineModel(nn.Module):
         super(SeqBaselineModel, self).__init__()
         self.base_path = config['base_path']
         self.early_stopping = config['early_stopping']
-        self.learner_loss = nn.CrossEntropyLoss(ignore_index=-1)
         self.learner_lr = config.get('learner_lr', 1e-3)
         self.weight_decay = config.get('meta_weight_decay', 0.0)
         self.learner = RNNSequenceModel(config['learner_params'])
@@ -33,60 +35,102 @@ class SeqBaselineModel(nn.Module):
         self.elmo = Elmo(options_file, weight_file, num_output_representations=1, dropout=0)
         self.elmo.requires_grad = False
 
-        self.output_layer = {}
+        self.output_layer, self.learner_loss = {}, {}
         for task in config['learner_params']['num_outputs']:
-            self.output_layer[task] = nn.Linear(self.learner.hidden // 2, config['learner_params']['num_outputs'][task])
+            if task == 'wsd':
+                self.output_layer[task] = AdaptiveLogSoftmaxWithLossAndIgnoreIndex(in_features=self.learner.hidden // 2,
+                                                                                   n_classes=config['learner_params']['num_outputs'][task],
+                                                                                   cutoffs=[10, 100, 1000])
+            else:
+                self.output_layer[task] = nn.Linear(self.learner.hidden // 2,
+                                                    config['learner_params']['num_outputs'][task])
+
+            if task == 'metaphor':
+                self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
+            else:
+                self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
         self.output_layer = nn.ModuleDict(self.output_layer)
+        self.learner_loss = nn.ModuleDict(self.learner_loss)
 
         if config.get('trained_baseline', None):
             self.learner.load_state_dict(torch.load(
                 os.path.join(self.base, 'saved_models', config['trained_baseline'])
             ))
 
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(config.get('device', 'cpu'))
         self.to(self.device)
         self.elmo.to(self.device)
 
         learner_params = [p for p in self.learner.parameters() if p.requires_grad]
         self.optimizer = optim.Adam(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
 
-    def vectorize(self, batch_x, batch_y):
+    def vectorize(self, batch_x, batch_len, batch_y):
         with torch.no_grad():
             char_ids = batch_to_ids(batch_x)
             char_ids = char_ids.to(self.device)
             batch_x = self.elmo(char_ids)['elmo_representations'][0]
+        batch_len = torch.tensor(batch_len).to(self.device)
         batch_y = torch.tensor(batch_y).to(self.device)
-        return batch_x, batch_y
+        return batch_x, batch_len, batch_y
 
-    def forward(self, episodes, epochs=1):
+    def forward(self, episodes, epochs=1, testing=False):
         best_loss = float('inf')
         best_model = None
         patience = 0
 
         for epoch in range(epochs):
             for episode in episodes:
-                for batch_x, batch_y in episode.support_loader:
-                    batch_x, batch_y = self.vectorize(batch_x, batch_y)
-                    output = self.learner(batch_x)
-                    output = self.output_layer[episode.task](output)
-                    loss = self.learner_loss(output.view(output.size()[0] * output.size()[1], -1), batch_y.view(-1))
+                self.train()
+                for batch_x, batch_len, batch_y in episode.support_loader:
+                    batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+                    output = self.learner(batch_x, batch_len)
+
+                    if episode.task != 'wsd':
+                        output = self.output_layer[episode.task](output)
+
+                    output = output.view(output.size()[0] * output.size()[1], -1)
+                    batch_y = batch_y.view(-1)
+
+                    if episode.task == 'wsd':
+                        loss = self.output_layer[episode.task](output, batch_y)
+                    else:
+                        loss = self.learner_loss[episode.task](output, batch_y)
+
                     self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()
 
                 total_loss = 0.0
                 all_predictions, all_labels = [], []
-                for batch_x, batch_y in episode.query_loader:
-                    batch_x, batch_y = self.vectorize(batch_x, batch_y)
-                    output = self.learner(batch_x)
-                    output = self.output_layer[episode.task](output)
+
+                if testing:
+                    self.eval()
+
+                for batch_x, batch_len, batch_y in episode.query_loader:
+                    batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+                    output = self.learner(batch_x, batch_len)
+
+                    if episode.task != 'wsd':
+                        output = self.output_layer[episode.task](output)
+
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
-                    loss = self.learner_loss(output, batch_y)
+
+                    if episode.task == 'wsd':
+                        loss = self.output_layer[episode.task](output, batch_y)
+                    else:
+                        loss = self.learner_loss[episode.task](output, batch_y)
+
+                    if not testing:
+                        self.optimizer.zero_grad()
+                        loss.backward()
+                        self.optimizer.step()
+
                     total_loss += loss.item()
+
                     relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
-                    all_predictions.extend(output[relevant_indices].max(-1)[1])
-                    all_labels.extend(batch_y[relevant_indices])
+                    all_predictions.extend(make_prediction(output[relevant_indices]).cpu())
+                    all_labels.extend(batch_y[relevant_indices].cpu())
 
                 if episode.task != 'metaphor':
                     accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,

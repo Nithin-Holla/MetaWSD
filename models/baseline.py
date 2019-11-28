@@ -22,11 +22,13 @@ class Baseline:
         logger.info('Baseline instantiated')
 
     def training(self, train_episodes):
-        self.baseline_model(train_episodes, self.epochs)
+        for epoch in range(self.epochs):
+            logger.info('Meta epoch {}'.format(epoch + 1))
+            self.baseline_model(train_episodes, self.updates)
 
     def testing(self, test_episodes):
         logger.info('---------- Baseline testing starts here ----------')
         for episode in test_episodes:
-            for epoch in range(self.meta_epochs):
+            for epoch in range(self.epochs):
                 logger.info('Meta epoch {}'.format(epoch + 1))
-                self.baseline_model([episode], self.updates)
+                self.baseline_model([episode], self.updates, testing=True)
