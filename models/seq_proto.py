@@ -66,58 +66,58 @@ class SeqPrototypicalNetwork(nn.Module):
         return batch_x, batch_len, batch_y
 
     def forward(self, episodes, updates=1, testing=False):
-        query_losses = []
-        query_accuracies = []
+        query_losses, query_accuracies = [], []
+        n_episodes = len(episodes)
 
-        for episode in episodes:
+        for episode_id, episode in enumerate(episodes):
+            self.train()
+            support_repr, support_label = [], []
+            for batch_x, batch_len, batch_y in episode.support_loader:
+                batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+                batch_x_repr = self.learner(batch_x, batch_len)
+                support_repr.append(batch_x_repr)
+                support_label.append(batch_y)
+
+            prototypes = self._build_prototypes(support_repr, support_label, self.num_outputs[episode.task])
+
+            # Run on query
             query_loss = 0.0
-            for epoch in range(updates):
-                self.train()
-                support_repr, support_label = [], []
-                for batch_x, batch_len, batch_y in episode.support_loader:
-                    batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
-                    batch_x_repr = self.learner(batch_x, batch_len)
-                    support_repr.append(batch_x_repr)
-                    support_label.append(batch_y)
+            all_predictions, all_labels = [], []
 
-                prototypes = self._build_prototypes(support_repr, support_label, self.num_outputs[episode.task])
+            if testing:
+                self.eval()
 
-                # Run on query
-                query_loss = 0.0
-                all_predictions, all_labels = [], []
+            for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
+                batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+                batch_x_repr = self.learner(batch_x, batch_len)
+                output = self._normalized_distances(prototypes, batch_x_repr)
+                output = output.view(output.size()[0] * output.size()[1], -1)
+                batch_y = batch_y.view(-1)
+                loss = self.loss_fn[episode.task](output, batch_y)
+                query_loss += loss.item()
 
-                if testing:
-                    self.eval()
+                if not testing:
+                    self.optimizer.zero_grad()
+                    loss.backward(retain_graph=True)
+                    self.optimizer.step()
 
-                for batch_x, batch_len, batch_y in episode.query_loader:
-                    batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
-                    batch_x_repr = self.learner(batch_x, batch_len)
-                    output = self._normalized_distances(prototypes, batch_x_repr)
-                    output = output.view(output.size()[0] * output.size()[1], -1)
-                    batch_y = batch_y.view(-1)
-                    loss = self.loss_fn[episode.task](output, batch_y)
-                    query_loss += loss.item()
+                relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
+                all_predictions.extend(make_prediction(output[relevant_indices]).cpu())
+                all_labels.extend(batch_y[relevant_indices].cpu())
 
-                    if not testing:
-                        self.optimizer.zero_grad()
-                        loss.backward(retain_graph=True)
-                        self.optimizer.step()
+            query_loss /= n_batch + 1
 
-                    relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
-                    all_predictions.extend(make_prediction(output[relevant_indices]).cpu())
-                    all_labels.extend(batch_y[relevant_indices].cpu())
+            # Calculate metrics
+            if episode.task != 'metaphor':
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=False)
+            else:
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=True)
 
-                # Calculate metrics
-                if episode.task != 'metaphor':
-                    accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                    all_labels, binary=False)
-                else:
-                    accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                    all_labels, binary=True)
-
-                logger.info('Task {}: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, recall = {:.5f}, '
-                            'F1 score = {:.5f}'.format(episode.task, query_loss, accuracy, precision,
-                                                       recall, f1_score))
+            logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
+                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task,
+                                                                    query_loss, accuracy, precision, recall, f1_score))
 
             query_losses.append(query_loss)
             query_accuracies.append(accuracy)

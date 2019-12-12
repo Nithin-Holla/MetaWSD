@@ -12,7 +12,7 @@ import logging
 import os
 import torch
 
-from models.loss import BCEWithLogitsLossAndIgnoreIndex, AdaptiveLogSoftmaxWithLossAndIgnoreIndex
+from models.loss import BCEWithLogitsLossAndIgnoreIndex
 from models.utils import make_prediction
 
 logger = logging.getLogger('Log')
@@ -37,14 +37,7 @@ class SeqBaselineModel(nn.Module):
 
         self.output_layer, self.learner_loss = {}, {}
         for task in config['learner_params']['num_outputs']:
-            if task == 'wsd':
-                self.output_layer[task] = AdaptiveLogSoftmaxWithLossAndIgnoreIndex(in_features=self.learner.hidden // 2,
-                                                                                   n_classes=config['learner_params']['num_outputs'][task],
-                                                                                   cutoffs=[10, 100, 1000])
-            else:
-                self.output_layer[task] = nn.Linear(self.learner.hidden // 2,
-                                                    config['learner_params']['num_outputs'][task])
-
+            self.output_layer[task] = nn.Linear(self.learner.hidden // 2, config['learner_params']['num_outputs'][task])
             if task == 'metaphor':
                 self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
             else:
@@ -61,8 +54,8 @@ class SeqBaselineModel(nn.Module):
         self.to(self.device)
         self.elmo.to(self.device)
 
-        learner_params = [p for p in self.learner.parameters() if p.requires_grad]
-        self.optimizer = optim.Adam(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+        params = [p for p in self.parameters() if p.requires_grad]
+        self.optimizer = optim.Adam(params, lr=self.learner_lr, weight_decay=self.weight_decay)
 
     def vectorize(self, batch_x, batch_len, batch_y):
         with torch.no_grad():
@@ -73,82 +66,91 @@ class SeqBaselineModel(nn.Module):
         batch_y = torch.tensor(batch_y).to(self.device)
         return batch_x, batch_len, batch_y
 
-    def forward(self, episodes, epochs=1, testing=False):
-        best_loss = float('inf')
-        best_model = None
-        patience = 0
+    def forward(self, episodes, updates=1, testing=False):
+        support_losses, query_losses, query_accuracies = [], [], []
+        n_episodes = len(episodes)
 
-        for epoch in range(epochs):
-            for episode in episodes:
+        for episode_id, episode in enumerate(episodes):
+            for _ in range(updates):
                 self.train()
-                for batch_x, batch_len, batch_y in episode.support_loader:
+                support_loss = 0.0
+                all_predictions, all_labels = [], []
+
+                for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.support_loader):
                     batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                     output = self.learner(batch_x, batch_len)
-
-                    if episode.task != 'wsd':
-                        output = self.output_layer[episode.task](output)
-
+                    output = self.output_layer[episode.task](output)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
+                    loss = self.learner_loss[episode.task](output, batch_y)
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    support_loss += loss.item()
 
-                    if episode.task == 'wsd':
-                        loss = self.output_layer[episode.task](output, batch_y)
-                    else:
-                        loss = self.learner_loss[episode.task](output, batch_y)
+                    relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
+                    pred = make_prediction(output[relevant_indices].detach()).cpu()
+                    all_predictions.extend(pred)
+                    all_labels.extend(batch_y[relevant_indices].cpu())
 
+                self.optimizer.step()
+                support_loss /= n_batch + 1
+
+            if episode.task != 'metaphor':
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=False)
+            else:
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=True)
+
+            logger.info('Episode {}/{}, task {} [support_set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
+                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task,
+                                                                    support_loss, accuracy, precision, recall,
+                                                                    f1_score))
+
+            query_loss = 0.0
+            all_predictions, all_labels = [], []
+
+            if testing:
+                self.eval()
+
+            for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
+                batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+                output = self.learner(batch_x, batch_len)
+                output = self.output_layer[episode.task](output)
+                output = output.view(output.size()[0] * output.size()[1], -1)
+                batch_y = batch_y.view(-1)
+                loss = self.learner_loss[episode.task](output, batch_y)
+
+                if not testing:
                     self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()
 
-                total_loss = 0.0
-                all_predictions, all_labels = [], []
+                query_loss += loss.item()
 
-                if testing:
-                    self.eval()
+                relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
+                pred = make_prediction(output[relevant_indices].detach()).cpu()
+                all_predictions.extend(pred)
+                all_labels.extend(batch_y[relevant_indices].cpu())
 
-                for batch_x, batch_len, batch_y in episode.query_loader:
-                    batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
-                    output = self.learner(batch_x, batch_len)
+            query_loss /= n_batch + 1
 
-                    if episode.task != 'wsd':
-                        output = self.output_layer[episode.task](output)
+            if episode.task != 'metaphor':
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=False)
+            else:
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=True)
 
-                    output = output.view(output.size()[0] * output.size()[1], -1)
-                    batch_y = batch_y.view(-1)
+            logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
+                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task,
+                                                                    query_loss, accuracy, precision, recall, f1_score))
 
-                    if episode.task == 'wsd':
-                        loss = self.output_layer[episode.task](output, batch_y)
-                    else:
-                        loss = self.learner_loss[episode.task](output, batch_y)
+            support_losses.append(support_loss)
+            query_losses.append(query_loss)
+            query_accuracies.append(accuracy)
 
-                    if not testing:
-                        self.optimizer.zero_grad()
-                        loss.backward()
-                        self.optimizer.step()
-
-                    total_loss += loss.item()
-
-                    relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
-                    all_predictions.extend(make_prediction(output[relevant_indices]).cpu())
-                    all_labels.extend(batch_y[relevant_indices].cpu())
-
-                if episode.task != 'metaphor':
-                    accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                    all_labels, binary=False)
-                else:
-                    accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                    all_labels, binary=True)
-
-                logger.info('Task {}: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, recall = {:.5f}, '
-                            'F1 score = {:.5f}'.format(episode.task, total_loss, accuracy, precision,
-                                                       recall, f1_score))
-
-                if total_loss < best_loss:
-                    patience = 0
-                    best_loss = total_loss
-                    best_model = copy.deepcopy(self.learner)
-                else:
-                    patience += 1
-                    if patience == self.early_stopping:
-                        break
-        self.learner = copy.deepcopy(best_model)
+        if testing:
+            return support_losses
+        else:
+            return query_losses, query_accuracies

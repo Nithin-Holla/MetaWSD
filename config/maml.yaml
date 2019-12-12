@@ -7,21 +7,22 @@ learner_params:
     wsd: 44600
     metaphor: 1
   embed_dim: 1024
-learner_lr: 0.01
+learner_lr: 0.001
+meta_lr: 0.01
 num_shots:
   pos: 64
-  wsd: 64
+  wsd: 32
   metaphor: 64
 num_updates: 1
 num_test_samples:
   pos: 64
-  wsd: 64
+  wsd: 32
   metaphor: all
 num_episodes:
-  pos: 5
-  wsd: 5
+  pos: 1
+  wsd: 1
   metaphor: 1
-num_meta_epochs: 10
-early_stopping: 10
+num_meta_epochs: 1000
+early_stopping: 5
 device: cuda:0
 proto_maml: false

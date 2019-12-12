@@ -38,10 +38,10 @@ def generate_episodes_from_split_datasets(train_dataset, test_dataset, n_episode
     for e in range(n_episodes):
         train_subset = data.Subset(train_dataset, train_indices[train_start_index: train_start_index + n_support_examples])
         support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
-        train_start_index += n_support_examples + 1
+        train_start_index += n_support_examples
         test_subset = data.Subset(test_dataset, test_indices[test_start_index: test_start_index + n_query_examples])
         query_loader = data.DataLoader(test_subset, batch_size=n_query_examples, collate_fn=prepare_batch)
-        test_start_index += n_query_examples + 1
+        test_start_index += n_query_examples
         episode = Episode(support_loader, query_loader, task)
         episodes.append(episode)
     return episodes
@@ -59,20 +59,20 @@ def generate_episodes_from_single_dataset(dataset, n_episodes, n_support_example
     for e in range(n_episodes):
         train_subset = data.Subset(dataset, indices[start_index: start_index + n_support_examples])
         support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
-        start_index += 1
+        start_index += n_support_examples
         test_subset = data.Subset(dataset, indices[start_index: start_index + n_query_examples])
         query_loader = data.DataLoader(test_subset, batch_size=n_query_examples, collate_fn=prepare_batch)
-        start_index += 1
+        start_index += n_query_examples
         episode = Episode(support_loader, query_loader, task)
         episodes.append(episode)
     return episodes
 
 
-def generate_full_query_episode(train_dataset, test_dataset, n_support_examples, task):
+def generate_full_query_episode(train_dataset, test_dataset, n_support_examples, task, batch_size=32):
     train_indices = list(range(train_dataset.__len__()))
     random.shuffle(train_indices)
     train_subset = data.Subset(train_dataset, train_indices[0:n_support_examples])
     support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
-    query_loader = data.DataLoader(test_dataset, batch_size=64, collate_fn=prepare_batch)
+    query_loader = data.DataLoader(test_dataset, batch_size=batch_size, collate_fn=prepare_batch)
     episode = Episode(support_loader, query_loader, task)
     return [episode]

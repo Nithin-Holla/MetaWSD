@@ -18,6 +18,7 @@ class PrototypicalNetwork:
         self.updates = config['num_updates']
         self.meta_epochs = config['num_meta_epochs']
         self.early_stopping = config['early_stopping']
+        self.stopping_threshold = config.get('stopping_threshold', 1e-2)
 
         if 'seq_meta' in config['meta_model']:
             self.proto_model = SeqPrototypicalNetwork(config)
@@ -32,14 +33,14 @@ class PrototypicalNetwork:
         )
         for epoch in range(self.meta_epochs):
             losses, accuracies = self.proto_model(train_episodes, self.updates)
-            loss_value = torch.mean(torch.Tensor(losses)).item()
-            accuracy = sum(accuracies) / len(accuracies)
+            avg_loss = sum(losses) / len(losses)
+            avg_accuracy = sum(accuracies) / len(accuracies)
             logger.info('Meta epoch {}:\tavg loss={:.5f}\tavg accuracy={:.5f}'.format(
-                epoch + 1, loss_value, accuracy
+                epoch + 1, avg_loss, avg_accuracy
             ))
-            if loss_value <= best_loss:
+            if avg_loss < best_loss - self.stopping_threshold:
                 patience = 0
-                best_loss = loss_value
+                best_loss = avg_loss
                 torch.save(self.proto_model.learner.state_dict(), model_path)
                 logger.info('Saving the model since the loss improved')
                 logger.info('')

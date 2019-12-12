@@ -7,11 +7,12 @@ class RNNSequenceModel(nn.Module):
         super(RNNSequenceModel, self).__init__()
         self.hidden = model_params['hidden_size']
         self.embed_dim = model_params['embed_dim']
-        self.dropout_ratio = model_params.get('dropout_ratio', 0.5)
+        self.dropout_ratio = model_params.get('dropout_ratio', 0)
 
         self.gru = nn.GRU(
             input_size=self.embed_dim,
             hidden_size=self.hidden,
+            num_layers=1,
             batch_first=True,
             bidirectional=True
         )

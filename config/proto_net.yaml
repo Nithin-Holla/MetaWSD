@@ -7,7 +7,7 @@ learner_params:
     wsd: 44600
     metaphor: 1
   embed_dim: 1024
-learner_lr: 0.01
+meta_lr: 0.01
 num_shots:
   pos: 64
   wsd: 64
@@ -21,6 +21,6 @@ num_episodes:
   pos: 5
   wsd: 5
   metaphor: 1
-num_meta_epochs: 10
-early_stopping: 10
+num_meta_epochs: 50
+early_stopping: 5
 device: cpu

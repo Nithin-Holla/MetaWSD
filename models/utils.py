@@ -16,7 +16,7 @@ def calculate_metrics(predictions, labels, binary=False):
 def make_prediction(output):
     with torch.no_grad():
         if output.size(1) == 1:
-            pred = (torch.sigmoid(output) > 0.5).int()
+            pred = (output > 0).int()
         else:
             pred = output.max(-1)[1]
     return pred
