@@ -72,6 +72,8 @@ class SeqMetaModel(nn.Module):
 
         for episode_id, episode in enumerate(episodes):
             learner = copy.deepcopy(self.learner)
+            if not testing:
+                self.output_layer[episode.task].reset_parameters()
             params = [p for p in learner.parameters() if p.requires_grad] + \
                      [p for p in self.output_layer[episode.task].parameters() if p.requires_grad]
             learner_optimizer = optim.SGD(params, lr=self.learner_lr)

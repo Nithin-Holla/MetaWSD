@@ -62,6 +62,7 @@ class MAML:
         for episode in test_episodes:
             prev_loss = 1e6
             patience = 0
+            self.meta_model.output_layer[episode.task].reset_parameters()
             for epoch in range(self.meta_epochs):
                 logger.info('Meta epoch {}'.format(epoch + 1))
                 loss = self.meta_model([episode], self.updates, testing=True)
