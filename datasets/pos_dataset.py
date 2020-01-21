@@ -12,9 +12,10 @@ POS_TAGS = {
 
 class POSDataset(data.Dataset):
 
-    def __init__(self, data_path):
+    def __init__(self, data_path, n_classes):
         self.data_path = data_path
         self.sentences = self._load_data()
+        self.n_classes = n_classes
 
     def _load_data(self):
         with open(self.data_path, 'r', encoding='utf8') as f:

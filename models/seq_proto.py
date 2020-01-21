@@ -31,10 +31,11 @@ class SeqPrototypicalNetwork(nn.Module):
         self.num_outputs = config['learner_params']['num_outputs']
         self.num_episodes = config['num_episodes']
 
-        options_file = "https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
-        weight_file = "https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
-        self.elmo = Elmo(options_file, weight_file, num_output_representations=1, dropout=0)
-        self.elmo.requires_grad = False
+        self.elmo = Elmo(options_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
+                         weight_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
+                         num_output_representations=1,
+                         dropout=0,
+                         requires_grad=False)
 
         self.loss_fn = {}
         for task in config['learner_params']['num_outputs']:
@@ -48,6 +49,7 @@ class SeqPrototypicalNetwork(nn.Module):
             self.learner.load_state_dict(torch.load(
                 os.path.join(self.base, 'saved_models', config['trained_learner'])
             ))
+            logger.info('Loaded trained learner model {}'.format(config['trained_learner']))
 
         learner_params = [p for p in self.learner.parameters() if p.requires_grad]
         self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
@@ -66,7 +68,7 @@ class SeqPrototypicalNetwork(nn.Module):
         return batch_x, batch_len, batch_y
 
     def forward(self, episodes, updates=1, testing=False):
-        query_losses, query_accuracies = [], []
+        query_losses, query_accuracies, query_precisions, query_recalls, query_f1s = [], [], [], [], []
         n_episodes = len(episodes)
 
         for episode_id, episode in enumerate(episodes):
@@ -78,7 +80,7 @@ class SeqPrototypicalNetwork(nn.Module):
                 support_repr.append(batch_x_repr)
                 support_label.append(batch_y)
 
-            prototypes = self._build_prototypes(support_repr, support_label, self.num_outputs[episode.task])
+            prototypes = self._build_prototypes(support_repr, support_label, episode.n_classes)
 
             # Run on query
             query_loss = 0.0
@@ -93,7 +95,7 @@ class SeqPrototypicalNetwork(nn.Module):
                 output = self._normalized_distances(prototypes, batch_x_repr)
                 output = output.view(output.size()[0] * output.size()[1], -1)
                 batch_y = batch_y.view(-1)
-                loss = self.loss_fn[episode.task](output, batch_y)
+                loss = self.loss_fn[episode.base_task](output, batch_y)
                 query_loss += loss.item()
 
                 if not testing:
@@ -108,7 +110,7 @@ class SeqPrototypicalNetwork(nn.Module):
             query_loss /= n_batch + 1
 
             # Calculate metrics
-            if episode.task != 'metaphor':
+            if episode.base_task != 'metaphor':
                 accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
                                                                                 all_labels, binary=False)
             else:
@@ -116,13 +118,16 @@ class SeqPrototypicalNetwork(nn.Module):
                                                                                 all_labels, binary=True)
 
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
-                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task,
+                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
                                                                     query_loss, accuracy, precision, recall, f1_score))
 
             query_losses.append(query_loss)
             query_accuracies.append(accuracy)
+            query_precisions.append(precision)
+            query_recalls.append(recall)
+            query_f1s.append(f1_score)
 
-        return query_losses, query_accuracies
+        return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr[0].shape[2]

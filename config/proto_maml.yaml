@@ -1,28 +1,29 @@
 meta_learner: maml
+proto_maml: true
+fomaml: true
 meta_model: seq_meta_model
 learner_params:
   hidden_size: 128
   num_outputs:
-    pos: 17
-    wsd: 44600
-    metaphor: 1
+#    pos: 17
+    wsd: var
+#    metaphor: 1
   embed_dim: 1024
-learner_lr: 0.001
-meta_lr: 0.01
+learner_lr: 1
+meta_lr: 0.1
 num_shots:
-  pos: 64
-  wsd: 64
-  metaphor: 64
-num_updates: 1
+  pos: 16
+  wsd: 16
+  metaphor: 16
+num_updates: 5
 num_test_samples:
-  pos: 64
-  wsd: 64
+  pos: 16
+  wsd: 16
   metaphor: all
 num_episodes:
-  pos: 5
-  wsd: 5
+  pos: 391
+  wsd: 600
   metaphor: 1
-num_meta_epochs: 50
-early_stopping: 5
+num_meta_epochs: 1000
+early_stopping: 10
 device: cuda:0
-proto_maml: true

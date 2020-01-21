@@ -1,4 +1,5 @@
 meta_learner: maml
+fomaml: True
 meta_model: seq_meta_model
 learner_params:
   hidden_size: 128

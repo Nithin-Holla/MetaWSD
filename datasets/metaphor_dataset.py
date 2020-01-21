@@ -5,9 +5,10 @@ from torch.utils import data
 
 class MetaphorDataset(data.Dataset):
 
-    def __init__(self, data_path):
+    def __init__(self, data_path, n_classes):
         self.data_path = data_path
         self.sentences, self.labels = self._load_data()
+        self.n_classes = n_classes
 
     def _load_data(self):
         sentences = []

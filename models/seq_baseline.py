@@ -30,25 +30,27 @@ class SeqBaselineModel(nn.Module):
         self.weight_decay = config.get('meta_weight_decay', 0.0)
         self.learner = RNNSequenceModel(config['learner_params'])
 
-        options_file = "https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
-        weight_file = "https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
-        self.elmo = Elmo(options_file, weight_file, num_output_representations=1, dropout=0)
-        self.elmo.requires_grad = False
+        self.elmo = Elmo(options_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
+                         weight_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
+                         num_output_representations=1,
+                         dropout=0,
+                         requires_grad=False)
 
-        self.output_layer, self.learner_loss = {}, {}
+        self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
-            self.output_layer[task] = nn.Linear(self.learner.hidden // 2, config['learner_params']['num_outputs'][task])
             if task == 'metaphor':
                 self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
             else:
                 self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
-        self.output_layer = nn.ModuleDict(self.output_layer)
         self.learner_loss = nn.ModuleDict(self.learner_loss)
+
+        self.output_layer = None
 
         if config.get('trained_baseline', None):
             self.learner.load_state_dict(torch.load(
                 os.path.join(self.base, 'saved_models', config['trained_baseline'])
             ))
+            logger.info('Loaded trained baseline model {}'.format(config['trained_baseline']))
 
         self.device = torch.device(config.get('device', 'cpu'))
         self.to(self.device)
@@ -67,10 +69,13 @@ class SeqBaselineModel(nn.Module):
         return batch_x, batch_len, batch_y
 
     def forward(self, episodes, updates=1, testing=False):
-        support_losses, query_losses, query_accuracies = [], [], []
+        support_losses = []
+        query_losses, query_accuracies, query_precisions, query_recalls, query_f1s = [], [], [], [], []
         n_episodes = len(episodes)
 
         for episode_id, episode in enumerate(episodes):
+            if not testing:
+                self.initialize_output_layer(episode.n_classes)
             for _ in range(updates):
                 self.train()
                 support_loss = 0.0
@@ -79,10 +84,10 @@ class SeqBaselineModel(nn.Module):
                 for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.support_loader):
                     batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                     output = self.learner(batch_x, batch_len)
-                    output = self.output_layer[episode.task](output)
+                    output = self.output_layer(output)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
-                    loss = self.learner_loss[episode.task](output, batch_y)
+                    loss = self.learner_loss[episode.base_task](output, batch_y)
                     self.optimizer.zero_grad()
                     loss.backward()
                     support_loss += loss.item()
@@ -95,7 +100,7 @@ class SeqBaselineModel(nn.Module):
                 self.optimizer.step()
                 support_loss /= n_batch + 1
 
-            if episode.task != 'metaphor':
+            if episode.base_task != 'metaphor':
                 accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
                                                                                 all_labels, binary=False)
             else:
@@ -103,7 +108,7 @@ class SeqBaselineModel(nn.Module):
                                                                                 all_labels, binary=True)
 
             logger.info('Episode {}/{}, task {} [support_set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
-                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task,
+                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
                                                                     support_loss, accuracy, precision, recall,
                                                                     f1_score))
 
@@ -116,10 +121,10 @@ class SeqBaselineModel(nn.Module):
             for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
                 batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                 output = self.learner(batch_x, batch_len)
-                output = self.output_layer[episode.task](output)
+                output = self.output_layer(output)
                 output = output.view(output.size()[0] * output.size()[1], -1)
                 batch_y = batch_y.view(-1)
-                loss = self.learner_loss[episode.task](output, batch_y)
+                loss = self.learner_loss[episode.base_task](output, batch_y)
 
                 if not testing:
                     self.optimizer.zero_grad()
@@ -135,7 +140,7 @@ class SeqBaselineModel(nn.Module):
 
             query_loss /= n_batch + 1
 
-            if episode.task != 'metaphor':
+            if episode.base_task != 'metaphor':
                 accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
                                                                                 all_labels, binary=False)
             else:
@@ -143,14 +148,20 @@ class SeqBaselineModel(nn.Module):
                                                                                 all_labels, binary=True)
 
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
-                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task,
+                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
                                                                     query_loss, accuracy, precision, recall, f1_score))
 
             support_losses.append(support_loss)
             query_losses.append(query_loss)
             query_accuracies.append(accuracy)
+            query_precisions.append(precision)
+            query_recalls.append(recall)
+            query_f1s.append(f1_score)
 
         if testing:
-            return support_losses
+            return support_losses, query_accuracies, query_precisions, query_recalls, query_f1s
         else:
-            return query_losses, query_accuracies
+            return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
+
+    def initialize_output_layer(self, n_classes):
+        self.output_layer = nn.Linear(self.learner.hidden // 2, n_classes).to(self.device)

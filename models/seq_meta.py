@@ -26,29 +26,31 @@ class SeqMetaModel(nn.Module):
         self.base_path = config['base_path']
         self.learner_lr = config.get('learner_lr', 1e-3)
         self.learner = RNNSequenceModel(config['learner_params'])
-        self.num_outputs = config['learner_params']['num_outputs']
         self.num_episodes = config['num_episodes']
-        self.proto_maml = config['proto_maml']
+        self.proto_maml = config.get('proto_maml', False)
+        self.fomaml = config.get('fomaml', False)
 
-        options_file = "https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
-        weight_file = "https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
-        self.elmo = Elmo(options_file, weight_file, num_output_representations=1, dropout=0)
-        self.elmo.requires_grad = False
+        self.elmo = Elmo(options_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
+                         weight_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
+                         num_output_representations=1,
+                         dropout=0,
+                         requires_grad=False)
 
-        self.output_layer, self.learner_loss = {}, {}
+        self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
-            self.output_layer[task] = nn.Linear(self.learner.hidden // 2, config['learner_params']['num_outputs'][task])
             if task == 'metaphor':
                 self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
             else:
                 self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
-        self.output_layer = nn.ModuleDict(self.output_layer)
         self.learner_loss = nn.ModuleDict(self.learner_loss)
+
+        self.output_layer = None
 
         if config.get('trained_learner', False):
             self.learner.load_state_dict(torch.load(
                 os.path.join(self.base_path, 'saved_models', config['trained_learner'])
             ))
+            logger.info('Loaded trained learner model {}'.format(config['trained_learner']))
 
         self.device = torch.device(config.get('device', 'cpu'))
         self.to(self.device)
@@ -67,19 +69,20 @@ class SeqMetaModel(nn.Module):
         return batch_x, batch_len, batch_y
 
     def forward(self, episodes, updates=1, testing=False):
-        support_losses, query_losses, query_accuracies = [], [], []
+        support_losses = []
+        query_losses, query_accuracies, query_precisions, query_recalls, query_f1s = [], [], [], [], []
         n_episodes = len(episodes)
 
         for episode_id, episode in enumerate(episodes):
             learner = copy.deepcopy(self.learner)
             if not testing:
-                self.output_layer[episode.task].reset_parameters()
+                self.initialize_output_layer(episode.n_classes)
             params = [p for p in learner.parameters() if p.requires_grad] + \
-                     [p for p in self.output_layer[episode.task].parameters() if p.requires_grad]
+                     [p for p in self.output_layer.parameters() if p.requires_grad]
             learner_optimizer = optim.SGD(params, lr=self.learner_lr)
 
             if self.proto_maml:
-                self._initialize_with_proto_weights(episode.support_loader, episode.task)
+                self._initialize_with_proto_weights(episode.support_loader, episode.n_classes)
 
             for _ in range(updates):
                 self.train()
@@ -91,10 +94,10 @@ class SeqMetaModel(nn.Module):
                 for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.support_loader):
                     batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                     output = learner(batch_x, batch_len)
-                    output = self.output_layer[episode.task](output)
+                    output = self.output_layer(output)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
-                    loss = self.learner_loss[episode.task](output, batch_y)
+                    loss = self.learner_loss[episode.base_task](output, batch_y)
                     loss.backward()
                     support_loss += loss.item()
 
@@ -106,7 +109,7 @@ class SeqMetaModel(nn.Module):
                 learner_optimizer.step()
                 support_loss /= n_batch + 1
 
-            if episode.task != 'metaphor':
+            if episode.base_task != 'metaphor':
                 accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
                                                                                 all_labels, binary=False)
             else:
@@ -114,7 +117,7 @@ class SeqMetaModel(nn.Module):
                                                                                 all_labels, binary=True)
 
             logger.info('Episode {}/{}, task {} [support_set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
-                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task,
+                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
                                                                     support_loss, accuracy, precision, recall, f1_score))
 
             query_loss = 0.0
@@ -128,10 +131,10 @@ class SeqMetaModel(nn.Module):
             for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
                 batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                 output = learner(batch_x, batch_len)
-                output = self.output_layer[episode.task](output)
+                output = self.output_layer(output)
                 output = output.view(output.size()[0] * output.size()[1], -1)
                 batch_y = batch_y.view(-1)
-                loss = self.learner_loss[episode.task](output, batch_y)
+                loss = self.learner_loss[episode.base_task](output, batch_y)
 
                 if not testing:
                     loss.backward()
@@ -145,7 +148,7 @@ class SeqMetaModel(nn.Module):
 
             query_loss /= n_batch + 1
 
-            if episode.task != 'metaphor':
+            if episode.base_task != 'metaphor':
                 accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
                                                                                 all_labels, binary=False)
             else:
@@ -153,16 +156,17 @@ class SeqMetaModel(nn.Module):
                                                                                 all_labels, binary=True)
 
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
-                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task,
+                        'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
                                                                     query_loss, accuracy, precision, recall, f1_score))
             support_losses.append(support_loss)
             query_losses.append(query_loss)
             query_accuracies.append(accuracy)
+            query_precisions.append(precision)
+            query_recalls.append(recall)
+            query_f1s.append(f1_score)
 
             if not testing:
-                for param, new_param in zip(
-                    self.learner.parameters(), learner.parameters()
-                ):
+                for param, new_param in zip(self.learner.parameters(), learner.parameters()):
                     if param.grad is not None and param.requires_grad:
                         param.grad += new_param.grad
                     elif param.requires_grad:
@@ -175,11 +179,14 @@ class SeqMetaModel(nn.Module):
                     param.grad /= len(query_accuracies)
 
         if testing:
-            return support_losses
+            return support_losses, query_accuracies, query_precisions, query_recalls, query_f1s
         else:
-            return query_losses, query_accuracies
+            return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
-    def _initialize_with_proto_weights(self, support_loader, task):
+    def initialize_output_layer(self, n_classes):
+        self.output_layer = nn.Linear(self.learner.hidden // 2, n_classes).to(self.device)
+
+    def _initialize_with_proto_weights(self, support_loader, n_classes):
         support_repr, support_label = [], []
         for batch_x, batch_len, batch_y in support_loader:
             batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
@@ -187,10 +194,10 @@ class SeqMetaModel(nn.Module):
             support_repr.append(batch_x_repr)
             support_label.append(batch_y)
 
-        prototypes = self._build_prototypes(support_repr, support_label, self.num_outputs[task])
+        prototypes = self._build_prototypes(support_repr, support_label, n_classes)
 
-        self.output_layer[task].weight.data = 2 * prototypes
-        self.output_layer[task].bias.data = torch.norm(prototypes, dim=1)
+        self.output_layer.weight.data = 2 * prototypes
+        self.output_layer.bias.data = torch.norm(prototypes, dim=1)
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr[0].shape[2]
