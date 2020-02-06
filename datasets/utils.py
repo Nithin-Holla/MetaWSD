@@ -1,9 +1,24 @@
+import glob
+import json
+import os
 import random
 
 from torch.utils import data
+from torch.utils.data import Subset
 
 from datasets.episode import Episode
-from datasets.wsd_dataset import WordWSDDataset
+from datasets.wsd_dataset import WordWSDDataset, MetaWSDDataset
+
+
+def write_json(json_dict, file_name):
+    with open(file_name, 'w', encoding='utf8') as f:
+        json.dump(json_dict, f, indent=4)
+
+
+def read_json(file_name):
+    with open(file_name, 'r', encoding='utf8') as f:
+        json_dict = json.load(f)
+    return json_dict
 
 
 def get_max_batch_len(batch):
@@ -17,7 +32,6 @@ def prepare_batch(batch):
     y = []
     for inp_seq, target_seq in batch:
         lengths.append(len(inp_seq))
-        inp_seq = inp_seq + ['<PAD>'] * (max_len - len(inp_seq))
         target_seq = target_seq + [-1] * (max_len - len(target_seq))
         x.append(inp_seq)
         y.append(target_seq)
@@ -79,7 +93,7 @@ def generate_full_query_episode(train_dataset, test_dataset, n_support_examples,
     return [episode]
 
 
-def generate_wsd_episodes(wsd_dataset, n_episodes, n_support_examples, n_query_examples, task):
+def generate_semcor_wsd_episodes(wsd_dataset, n_episodes, n_support_examples, n_query_examples, task):
     word_splits = {k: v for (k, v) in wsd_dataset.word_splits.items() if len(v['sentences']) >
                    (n_support_examples + n_query_examples)}
 
@@ -110,3 +124,25 @@ def generate_wsd_episodes(wsd_dataset, n_episodes, n_support_examples, n_query_e
         episodes.append(episode)
     return episodes
 
+
+def generate_wsd_episodes(dir, n_episodes, n_support_examples, n_query_examples, task, meta_train=True):
+    episodes = []
+    for file_name in glob.glob(os.path.join(dir, '*.json')):
+        if len(episodes) == n_episodes:
+            break
+        word = file_name.split(os.sep)[-1].split('.')[0]
+        word_wsd_dataset = MetaWSDDataset(file_name)
+        train_subset = Subset(word_wsd_dataset, range(0, n_support_examples))
+        support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
+        if meta_train:
+            test_subset = Subset(word_wsd_dataset, range(n_support_examples, n_support_examples + n_query_examples))
+        else:
+            test_subset = Subset(word_wsd_dataset, range(n_support_examples, len(word_wsd_dataset)))
+        query_loader = data.DataLoader(test_subset, batch_size=n_query_examples, collate_fn=prepare_batch)
+        episode = Episode(support_loader=support_loader,
+                          query_loader=query_loader,
+                          base_task=task,
+                          task_id=task + '-' + word,
+                          n_classes=word_wsd_dataset.n_classes)
+        episodes.append(episode)
+    return episodes

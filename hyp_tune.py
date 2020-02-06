@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 from argparse import ArgumentParser
 
 import coloredlogs
@@ -10,7 +9,6 @@ import numpy as np
 from datetime import datetime
 
 from datasets import utils
-from datasets.wsd_dataset import WSDDataset
 from models.baseline import Baseline
 from models.majority_classifier import MajorityClassifier
 from models.maml import MAML
@@ -32,22 +30,19 @@ def load_config(config_file):
 
 
 def train(config):
-    # Path for WSD dataset
-    wsd_base_path = os.path.join(config['base_path'], '../data/word_sense_disambigation_corpora/semcor/')
 
-    # Load WSD dataset
-    logger.info('Loading the dataset for WSD')
-    wsd_dataset = WSDDataset(wsd_base_path)
-    logger.info('Finished loading the dataset for WSD')
+    # Path for WSD dataset
+    wsd_base_path = os.path.join(config['base_path'], '../data/semcor_meta/')
+    wsd_train_path = os.path.join(wsd_base_path, 'meta_train_' + str(config['num_shots']['wsd']) + '-' +
+                                  str(config['num_test_samples']['wsd']))
 
     # Generate episodes for WSD
     logger.info('Generating episodes for WSD')
-    wsd_episodes = utils.generate_wsd_episodes(wsd_dataset=wsd_dataset,
-                                               n_episodes=config['num_episodes']['wsd'],
-                                               n_support_examples=config['num_shots']['wsd'],
-                                               n_query_examples=config['num_test_samples']['wsd'],
-                                               task='wsd')
-    random.shuffle(wsd_episodes)
+    wsd_train_episodes = utils.generate_wsd_episodes(dir=wsd_train_path,
+                                                     n_episodes=config['num_train_episodes']['wsd'],
+                                                     n_support_examples=config['num_shots']['wsd'],
+                                                     n_query_examples=config['num_test_samples']['wsd'],
+                                                     task='wsd')
     logger.info('Finished generating episodes for WSD')
 
     # Initialize meta learner
@@ -63,7 +58,7 @@ def train(config):
         raise NotImplementedError
 
     # Meta-training
-    avg_f1 = meta_learner.training(wsd_episodes[:-50])
+    avg_f1 = meta_learner.training(wsd_train_episodes)
     return avg_f1
 
 
@@ -79,7 +74,8 @@ if __name__ == '__main__':
 
     # Directory for saving models
     os.makedirs(os.path.join(config['base_path'], 'saved_models'), exist_ok=True)
-    
+
+    best_f1 = 0
     for learner_lr in [1, 0.5, 0.01]:
         for meta_lr in [1, 0.5, 0.01]:
             for hidden_size in [64, 128, 256]:
@@ -91,13 +87,15 @@ if __name__ == '__main__':
                     config['num_updates'] = num_updates
                     logger.info('Using configuration: {}'.format(config))
                     for i in range(3):
+                        logger.info('Run {}'.format(i + 1))
                         f1 = train(config)
                         f1s.append(f1)
-                    avg_f1 = np.mean(f1)
+                    avg_f1 = np.mean(f1s)
                     logger.info('Got average F1: {}', avg_f1)
                     if avg_f1 > best_f1:
                         best_config = config
                         best_f1 = avg_f1
+                    exit(0)
 
     logger.info('Tuning finished with best F1 score of {}'.format(best_f1))
     logger.info('Best config: {}'.format(best_config))

@@ -29,7 +29,6 @@ class SeqPrototypicalNetwork(nn.Module):
         self.weight_decay = config.get('meta_weight_decay', 0.0)
         self.learner = RNNSequenceModel(config['learner_params'])
         self.num_outputs = config['learner_params']['num_outputs']
-        self.num_episodes = config['num_episodes']
 
         self.elmo = Elmo(options_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
                          weight_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",

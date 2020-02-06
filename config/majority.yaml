@@ -1,20 +1,15 @@
-meta_learner: proto_net
-meta_model: seq_meta_model
+meta_learner: majority
 learner_params:
   hidden_size: 128
   num_outputs:
     wsd: var
   embed_dim: 1024
-meta_lr: 0.1
 num_shots:
   wsd: 16
-num_updates: 5
 num_test_samples:
   wsd: 16
 num_train_episodes:
   wsd: 400
 num_test_episodes:
   wsd: 200
-num_meta_epochs: 1000
-early_stopping: 10
-device: cuda:0
+device: cpu #cuda:0

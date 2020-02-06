@@ -5,25 +5,19 @@ meta_model: seq_meta_model
 learner_params:
   hidden_size: 128
   num_outputs:
-#    pos: 17
     wsd: var
-#    metaphor: 1
   embed_dim: 1024
 learner_lr: 1
 meta_lr: 0.1
 num_shots:
-  pos: 16
   wsd: 16
-  metaphor: 16
 num_updates: 5
 num_test_samples:
-  pos: 16
   wsd: 16
-  metaphor: all
-num_episodes:
-  pos: 391
-  wsd: 600
-  metaphor: 1
+num_train_episodes:
+  wsd: 400
+num_test_episodes:
+  wsd: 200
 num_meta_epochs: 1000
 early_stopping: 10
 device: cuda:0

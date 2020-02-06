@@ -1,12 +1,16 @@
+import itertools
 import json
 import os
 from collections import defaultdict
 
 from torch.utils import data
 import xml.etree.ElementTree as ET
+import numpy as np
+
+from datasets import utils
 
 
-class WSDDataset(data.Dataset):
+class SemCorWSDDataset(data.Dataset):
 
     def __init__(self, data_path):
         self.data_path = data_path
@@ -80,6 +84,23 @@ class WordWSDDataset(data.Dataset):
         self.sentences = sentences
         self.labels = labels
         self.n_classes = n_classes
+
+    def __len__(self):
+        return len(self.sentences)
+
+    def __getitem__(self, index):
+        return self.sentences[index], self.labels[index]
+
+
+class MetaWSDDataset(data.Dataset):
+
+    def __init__(self, file_name):
+        json_dict = utils.read_json(file_name)
+        self.sentences, self.labels = [],  []
+        for entry in json_dict:
+            self.sentences.append(entry['sentence'])
+            self.labels.append(entry['label'])
+        self.n_classes = np.max(list(itertools.chain(*self.labels))) + 1
 
     def __len__(self):
         return len(self.sentences)

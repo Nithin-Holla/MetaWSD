@@ -9,9 +9,6 @@ import yaml
 
 from datetime import datetime
 from datasets import utils
-from datasets.metaphor_dataset import MetaphorDataset
-from datasets.pos_dataset import POSDataset
-from datasets.wsd_dataset import WSDDataset
 from models.baseline import Baseline
 from models.majority_classifier import MajorityClassifier
 from models.maml import MAML
@@ -53,71 +50,30 @@ if __name__ == '__main__':
     # Directory for saving models
     os.makedirs(os.path.join(config['base_path'], 'saved_models'), exist_ok=True)
 
-    # # Paths for POS tagging dataset
-    # pos_base_path = os.path.join(config['base_path'], '../data/UD_English-EWT/')
-    # pos_train_path = os.path.join(pos_base_path, 'en_ewt-ud-train.conllu')
-    #
-    # # Create POS tagging train and test dataset
-    # logger.info('Loading dataset for POS tagging')
-    # pos_train_dataset = POSDataset(pos_train_path, config['learner_params']['num_outputs']['pos'])
-    # logger.info('Finished loading the dataset for POS tagging')
-    #
-    # # Generate episodes for POS tagging
-    # logger.info('Generating episodes for POS tagging')
-    # pos_episodes = utils.generate_episodes_from_single_dataset(dataset=pos_train_dataset,
-    #                                                            n_episodes=config['num_episodes']['pos'],
-    #                                                            n_support_examples=config['num_shots']['pos'],
-    #                                                            n_query_examples=config['num_test_samples']['pos'],
-    #                                                            task='pos')
-    # train_episodes.extend(pos_episodes)
-    # logger.info('Finished generating episodes for POS tagging')
-
     # Path for WSD dataset
-    wsd_base_path = os.path.join(config['base_path'], '../data/word_sense_disambigation_corpora/semcor/')
-
-    # Load WSD dataset
-    logger.info('Loading the dataset for WSD')
-    wsd_dataset = WSDDataset(wsd_base_path)
-    logger.info('Finished loading the dataset for WSD')
+    wsd_base_path = os.path.join(config['base_path'], '../data/semcor_meta/')
+    wsd_train_path = os.path.join(wsd_base_path, 'meta_train_' + str(config['num_shots']['wsd']) + '-' +
+                                  str(config['num_test_samples']['wsd']))
+    wsd_test_path = os.path.join(wsd_base_path, 'meta_test_' + str(config['num_shots']['wsd']) + '-' +
+                                 str(config['num_test_samples']['wsd']))
 
     # Generate episodes for WSD
     logger.info('Generating episodes for WSD')
-    wsd_episodes = utils.generate_wsd_episodes(wsd_dataset=wsd_dataset,
-                                               n_episodes=config['num_episodes']['wsd'],
-                                               n_support_examples=config['num_shots']['wsd'],
-                                               n_query_examples=config['num_test_samples']['wsd'],
-                                               task='wsd')
-    random.shuffle(wsd_episodes)
-    train_episodes.extend(wsd_episodes)
+    wsd_train_episodes = utils.generate_wsd_episodes(dir=wsd_train_path,
+                                                     n_episodes=config['num_train_episodes']['wsd'],
+                                                     n_support_examples=config['num_shots']['wsd'],
+                                                     n_query_examples=config['num_test_samples']['wsd'],
+                                                     task='wsd',
+                                                     meta_train=True)
+    wsd_test_episodes = utils.generate_wsd_episodes(dir=wsd_test_path,
+                                                    n_episodes=config['num_test_episodes']['wsd'],
+                                                    n_support_examples=config['num_shots']['wsd'],
+                                                    n_query_examples=config['num_test_samples']['wsd'],
+                                                    task='wsd',
+                                                    meta_train=False)
+    train_episodes.extend(wsd_train_episodes)
+    test_episodes.extend(wsd_test_episodes)
     logger.info('Finished generating episodes for WSD')
-
-    # # Paths for metaphor dataset
-    # metaphor_base_path = os.path.join(config['base_path'], '../data/vuamc/')
-    # metaphor_train_path = os.path.join(metaphor_base_path, 'vuamc_corpus_train.csv')
-    # metaphor_test_path = os.path.join(metaphor_base_path, 'vuamc_corpus_test.csv')
-    #
-    # # Load metaphor train and test dataset
-    # logger.info('Loading the dataset for metaphor')
-    # metaphor_train_dataset = MetaphorDataset(metaphor_train_path, config['learner_params']['num_outputs']['metaphor'])
-    # metaphor_test_dataset = MetaphorDataset(metaphor_test_path, config['learner_params']['num_outputs']['metaphor'])
-    # logger.info('Finished loading the dataset for metaphor')
-    #
-    # # Generate episodes for metaphor
-    # logger.info('Generating episodes for metaphor')
-    # if config['num_test_samples']['metaphor'] == 'all':
-    #     metaphor_episodes = utils.generate_full_query_episode(train_dataset=metaphor_train_dataset,
-    #                                                           test_dataset=metaphor_test_dataset,
-    #                                                           n_support_examples=config['num_shots']['metaphor'],
-    #                                                           task='metaphor')
-    # else:
-    #     metaphor_episodes = utils.generate_episodes_from_split_datasets(train_dataset=metaphor_train_dataset,
-    #                                                                     test_dataset=metaphor_test_dataset,
-    #                                                                     n_episodes=config['num_episodes']['metaphor'],
-    #                                                                     n_support_examples=config['num_shots']['metaphor'],
-    #                                                                     n_query_examples=config['num_test_samples']['metaphor'],
-    #                                                                     task='metaphor')
-    # test_episodes.extend(metaphor_episodes)
-    # logger.info('Finished generating episodes for metaphor')
 
     # Initialize meta learner
     if config['meta_learner'] == 'maml':
@@ -132,9 +88,9 @@ if __name__ == '__main__':
         raise NotImplementedError
 
     # Meta-training
-    meta_learner.training(wsd_episodes[:-50])
+    meta_learner.training(train_episodes)
     logger.info('Meta-learning completed')
 
     # Meta-testing
-    meta_learner.testing(wsd_episodes[-50:])
+    meta_learner.testing(test_episodes)
     logger.info('Meta-testing completed')

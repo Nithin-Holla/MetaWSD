@@ -26,7 +26,6 @@ class SeqMetaModel(nn.Module):
         self.base_path = config['base_path']
         self.learner_lr = config.get('learner_lr', 1e-3)
         self.learner = RNNSequenceModel(config['learner_params'])
-        self.num_episodes = config['num_episodes']
         self.proto_maml = config.get('proto_maml', False)
         self.fomaml = config.get('fomaml', False)
 
