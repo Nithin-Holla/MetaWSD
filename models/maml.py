@@ -5,6 +5,7 @@ import logging
 import os
 import torch
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 
 from models.seq_meta import SeqMetaModel
 
@@ -12,6 +13,7 @@ logger = logging.getLogger('MAML Log')
 coloredlogs.install(logger=logger, level='DEBUG',
                     fmt='%(asctime)s - %(name)s - %(levelname)s'
                         ' - %(message)s')
+tensorboard_writer = SummaryWriter(log_dir='runs/MAML')
 
 
 class MAML:
@@ -67,6 +69,14 @@ class MAML:
                 logger.info('Loss did not improve')
                 if patience == self.early_stopping:
                     break
+
+            # Log training data into tensorboard
+            tensorboard_writer.add_scalar('Loss/train', avg_loss, global_step=epoch+1)
+            for name, param in self.meta_model.named_parameters():
+                if param.requires_grad and param.grad is not None:
+                    tensorboard_writer.add_histogram('Params/' + name, param.data.view(-1), global_step=epoch+1)
+                    tensorboard_writer.add_histogram('Grads/' + name, param.grad.data.view(-1), global_step=epoch+1)
+
         self.meta_model.learner.load_state_dict(torch.load(model_path))
         return best_f1
 
