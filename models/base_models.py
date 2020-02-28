@@ -7,6 +7,7 @@ class RNNSequenceModel(nn.Module):
         super(RNNSequenceModel, self).__init__()
         self.hidden = model_params['hidden_size']
         self.embed_dim = model_params['embed_dim']
+        self.output_dim = model_params['num_outputs']['wsd']
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
 
         self.gru = nn.GRU(
@@ -17,6 +18,7 @@ class RNNSequenceModel(nn.Module):
             bidirectional=True
         )
         self.linear1 = nn.Linear(2 * self.hidden, self.hidden // 2)
+        self.linear2 = nn.Linear(self.hidden // 2, self.output_dim)
 
         self.dropout = nn.Dropout(p=self.dropout_ratio)
         self.tanh = nn.Tanh()
@@ -39,4 +41,23 @@ class RNNSequenceModel(nn.Module):
         hidden = self.tanh(hidden)
         d = self.tanh(self.linear1(hidden))
         dropout = self.dropout(d)
-        return dropout
+        out = self.linear2(dropout)
+        return out
+
+
+class MLPModel(nn.Module):
+
+    def __init__(self, model_params):
+        super(MLPModel, self).__init__()
+        self.embed_dim = model_params['embed_dim']
+        self.hidden_size = model_params['hidden_size']
+        self.output_dim = model_params['num_outputs']['wsd']
+        self.dropout_ratio = model_params.get('dropout_ratio', 0)
+        self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(p=self.dropout_ratio),
+                                    nn.Linear(self.hidden_size, self.output_dim))
+
+    def forward(self, input, *args):
+        out = self.linear(input)
+        return out

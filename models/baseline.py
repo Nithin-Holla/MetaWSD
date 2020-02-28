@@ -30,13 +30,14 @@ class Baseline:
 
         logger.info('Baseline instantiated')
 
-    def training(self, train_episodes):
+    def training(self, train_episodes, val_episodes):
         best_loss = float('inf')
         best_f1 = 0
         patience = 0
         model_path = os.path.join(self.base_path, 'saved_models', 'Baseline-{}.h5'.format(self.stamp))
         logger.info('Model name: Baseline-{}.h5'.format(self.stamp))
         for epoch in range(self.epochs):
+            logger.info('Starting epoch {}'.format(epoch + 1))
             losses, accuracies, precisions, recalls, f1s = self.baseline_model(train_episodes, self.updates)
             avg_loss = np.mean(losses)
             avg_accuracy = np.mean(accuracies)
@@ -44,9 +45,22 @@ class Baseline:
             avg_recall = np.mean(recalls)
             avg_f1 = np.mean(f1s)
 
-            logger.info('Meta epoch {}: Avg loss = {:.5f}, avg accuracy = {:.5f}, avg precision = {:.5f}, '
+            logger.info('Meta train epoch {}: Avg loss = {:.5f}, avg accuracy = {:.5f}, avg precision = {:.5f}, '
                         'avg recall = {:.5f}, avg F1 score = {:.5f}'.format(epoch + 1, avg_loss, avg_accuracy,
                                                                             avg_precision, avg_recall, avg_f1))
+            tensorboard_writer.add_scalar('Loss/train', avg_loss, global_step=epoch + 1)
+
+            losses, accuracies, precisions, recalls, f1s = self.baseline_model(val_episodes, self.updates, testing=True)
+            avg_loss = np.mean(losses)
+            avg_accuracy = np.mean(accuracies)
+            avg_precision = np.mean(precisions)
+            avg_recall = np.mean(recalls)
+            avg_f1 = np.mean(f1s)
+
+            logger.info('Meta val epoch {}: Avg loss = {:.5f}, avg accuracy = {:.5f}, avg precision = {:.5f}, '
+                        'avg recall = {:.5f}, avg F1 score = {:.5f}'.format(epoch + 1, avg_loss, avg_accuracy,
+                                                                            avg_precision, avg_recall, avg_f1))
+            tensorboard_writer.add_scalar('Loss/val', avg_loss, global_step=epoch + 1)
 
             if avg_loss < best_loss - self.stopping_threshold:
                 patience = 0
@@ -60,9 +74,8 @@ class Baseline:
                 if patience == self.early_stopping:
                     break
 
-            # Log training data into tensorboard
-            tensorboard_writer.add_scalar('Loss/train', avg_loss, global_step=epoch + 1)
-            for name, param in self.meta_model.named_parameters():
+            # Log params and grads into tensorboard
+            for name, param in self.baseline_model.named_parameters():
                 if param.requires_grad and param.grad is not None:
                     tensorboard_writer.add_histogram('Params/' + name, param.data.view(-1),
                                                      global_step=epoch + 1)
@@ -74,35 +87,21 @@ class Baseline:
 
     def testing(self, test_episodes):
         logger.info('---------- Baseline testing starts here ----------')
-        episode_accuracies, episode_precisions, episode_recalls, episodes_f1s = [], [], [], []
+        episode_accuracies, episode_precisions, episode_recalls, episode_f1s = [], [], [], []
         for episode in test_episodes:
-            best_loss = 1e6
-            best_accuracy, best_precision, best_recall, best_f1_score = 0, 0, 0, 0
-            patience = 0
-            self.baseline_model.initialize_output_layer(episode.n_classes)
-            for epoch in range(self.epochs):
-                logger.info('Meta epoch {}'.format(epoch + 1))
-                loss, accuracy, precision, recall, f1_score = self.baseline_model([episode], updates=1, testing=True)
-                loss = loss[0]
-                accuracy, precision, recall, f1_score = accuracy[0], precision[0], recall[0], f1_score[0]
-                if loss < best_loss - self.stopping_threshold:
-                    patience = 0
-                    best_loss = loss
-                    best_accuracy, best_precision, best_recall, best_f1_score = accuracy, precision, recall, f1_score
-                    logger.info('Loss improved')
-                else:
-                    patience += 1
-                    logger.info('Loss did not improve')
-                    if patience == self.early_stopping:
-                        break
+            loss, accuracy, precision, recall, f1_score = self.baseline_model([episode], updates=self.updates, testing=True)
+            loss = loss[0]
+            accuracy, precision, recall, f1_score = accuracy[0], precision[0], recall[0], f1_score[0]
 
-            episode_accuracies.append(best_accuracy)
-            episode_precisions.append(best_precision)
-            episode_recalls.append(best_recall)
-            episodes_f1s.append(best_f1_score)
+            episode_accuracies.append(accuracy)
+            episode_precisions.append(precision)
+            episode_recalls.append(recall)
+            episode_f1s.append(f1_score)
 
         logger.info('Avg meta-testing metrics: Accuracy = {:.5f}, precision = {:.5f}, recall = {:.5f}, '
                     'F1 score = {:.5f}'.format(np.mean(episode_accuracies),
                                                np.mean(episode_precisions),
                                                np.mean(episode_recalls),
-                                               np.mean(episodes_f1s)))
+                                               np.mean(episode_f1s)))
+
+        return np.mean(episode_f1s)

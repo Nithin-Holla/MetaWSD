@@ -44,17 +44,19 @@ if __name__ == '__main__':
     torch.manual_seed(42)
     random.seed(42)
 
-    # Episodes for meta-training and meta-testing
-    train_episodes, test_episodes = [], []
+    # Episodes for meta-training, meta-validation and meta-testing
+    train_episodes, val_episodes, test_episodes = [], [], []
 
     # Directory for saving models
     os.makedirs(os.path.join(config['base_path'], 'saved_models'), exist_ok=True)
 
     # Path for WSD dataset
     wsd_base_path = os.path.join(config['base_path'], '../data/semcor_meta/')
-    wsd_train_path = os.path.join(wsd_base_path, 'meta_train_' + str(config['num_shots']['wsd']) + '-' +
+    wsd_train_path = os.path.join(wsd_base_path, 'multi_meta_train_' + str(config['num_shots']['wsd']) + '-' +
                                   str(config['num_test_samples']['wsd']))
-    wsd_test_path = os.path.join(wsd_base_path, 'meta_test_' + str(config['num_shots']['wsd']) + '-' +
+    wsd_val_path = os.path.join(wsd_base_path, 'multi_meta_val_' + str(config['num_shots']['wsd']) + '-' +
+                                str(config['num_test_samples']['wsd']))
+    wsd_test_path = os.path.join(wsd_base_path, 'multi_meta_test_' + str(config['num_shots']['wsd']) + '-' +
                                  str(config['num_test_samples']['wsd']))
 
     # Generate episodes for WSD
@@ -65,6 +67,12 @@ if __name__ == '__main__':
                                                      n_query_examples=config['num_test_samples']['wsd'],
                                                      task='wsd',
                                                      meta_train=True)
+    wsd_val_episodes = utils.generate_wsd_episodes(dir=wsd_val_path,
+                                                   n_episodes=config['num_val_episodes']['wsd'],
+                                                   n_support_examples=config['num_shots']['wsd'],
+                                                   n_query_examples=config['num_test_samples']['wsd'],
+                                                   task='wsd',
+                                                   meta_train=False)
     wsd_test_episodes = utils.generate_wsd_episodes(dir=wsd_test_path,
                                                     n_episodes=config['num_test_episodes']['wsd'],
                                                     n_support_examples=config['num_shots']['wsd'],
@@ -72,6 +80,7 @@ if __name__ == '__main__':
                                                     task='wsd',
                                                     meta_train=False)
     train_episodes.extend(wsd_train_episodes)
+    val_episodes.extend(wsd_val_episodes)
     test_episodes.extend(wsd_test_episodes)
     logger.info('Finished generating episodes for WSD')
 
@@ -88,7 +97,7 @@ if __name__ == '__main__':
         raise NotImplementedError
 
     # Meta-training
-    meta_learner.training(train_episodes)
+    meta_learner.training(train_episodes, val_episodes)
     logger.info('Meta-learning completed')
 
     # Meta-testing

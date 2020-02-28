@@ -1,8 +1,9 @@
+import torchtext
 from allennlp.modules import Elmo
 from allennlp.modules.elmo import batch_to_ids
 
 from models import utils
-from models.base_models import RNNSequenceModel
+from models.base_models import RNNSequenceModel, MLPModel
 from torch import nn, optim
 
 import coloredlogs
@@ -25,25 +26,31 @@ class SeqMetaModel(nn.Module):
         super(SeqMetaModel, self).__init__()
         self.base_path = config['base_path']
         self.learner_lr = config.get('learner_lr', 1e-3)
-        self.learner = RNNSequenceModel(config['learner_params'])
+
+        if 'seq' in config['learner_model']:
+            self.learner = RNNSequenceModel(config['learner_params'])
+        elif 'mlp' in config['learner_model']:
+            self.learner = MLPModel(config['learner_params'])
+
         self.proto_maml = config.get('proto_maml', False)
         self.fomaml = config.get('fomaml', False)
+        self.vectors = config.get('vectors', 'glove')
 
-        self.elmo = Elmo(options_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
-                         weight_file="https://allennlp.s3.amazonaws.com/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
-                         num_output_representations=1,
-                         dropout=0,
-                         requires_grad=False)
+        if self.vectors == 'elmo':
+            self.elmo = Elmo(options_file="https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x1024_128_2048cnn_1xhighway/elmo_2x1024_128_2048cnn_1xhighway_options.json",
+                             weight_file="https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x1024_128_2048cnn_1xhighway/elmo_2x1024_128_2048cnn_1xhighway_weights.hdf5",
+                             num_output_representations=1,
+                             dropout=0,
+                             requires_grad=False)
+        elif self.vectors == 'glove':
+            self.glove = torchtext.vocab.GloVe(name='840B', dim=300)
 
         self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
             if task == 'metaphor':
                 self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
             else:
-                self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
-        self.learner_loss = nn.ModuleDict(self.learner_loss)
-
-        self.output_layer = None
+                self.learner_loss[task] = nn.NLLLoss(ignore_index=-1)
 
         if config.get('trained_learner', False):
             self.learner.load_state_dict(torch.load(
@@ -53,16 +60,23 @@ class SeqMetaModel(nn.Module):
 
         self.device = torch.device(config.get('device', 'cpu'))
         self.to(self.device)
-        self.elmo.to(self.device)
 
         if self.proto_maml:
             logger.info('Initialization of output layer weights as per prototypical networks turned on')
 
     def vectorize(self, batch_x, batch_len, batch_y):
         with torch.no_grad():
-            char_ids = batch_to_ids(batch_x)
-            char_ids = char_ids.to(self.device)
-            batch_x = self.elmo(char_ids)['elmo_representations'][0]
+            if self.vectors == 'elmo':
+                char_ids = batch_to_ids(batch_x)
+                char_ids = char_ids.to(self.device)
+                batch_x = self.elmo(char_ids)['elmo_representations'][0]
+            elif self.vectors == 'glove':
+                max_batch_len = max(batch_len)
+                vec_batch_x = torch.ones((len(batch_x), max_batch_len, 300))
+                for i, sent in enumerate(batch_x):
+                    sent_emb = self.glove.get_vecs_by_tokens(sent, lower_case_backup=True)
+                    vec_batch_x[i, :len(sent_emb)] = sent_emb
+                batch_x = vec_batch_x.to(self.device)
         batch_len = torch.tensor(batch_len).to(self.device)
         batch_y = torch.tensor(batch_y).to(self.device)
         return batch_x, batch_len, batch_y
@@ -74,39 +88,38 @@ class SeqMetaModel(nn.Module):
 
         for episode_id, episode in enumerate(episodes):
             learner = copy.deepcopy(self.learner)
-            if not testing:
-                self.initialize_output_layer(episode.n_classes)
-            params = [p for p in learner.parameters() if p.requires_grad] + \
-                     [p for p in self.output_layer.parameters() if p.requires_grad]
+            params = [p for p in learner.parameters() if p.requires_grad]
             learner_optimizer = optim.SGD(params, lr=self.learner_lr)
 
             if self.proto_maml:
                 self._initialize_with_proto_weights(episode.support_loader, episode.n_classes)
 
+            batch_x, batch_len, batch_y = next(iter(episode.support_loader))
+            batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+            episode_unique_labels = torch.unique(batch_y.view(-1)[batch_y.view(-1) != -1])
+
+            self.train()
+            learner.train()
+
             for _ in range(updates):
-                self.train()
-                learner.train()
                 learner_optimizer.zero_grad()
-                support_loss = 0.0
                 all_predictions, all_labels = [], []
 
-                for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.support_loader):
-                    batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
-                    output = learner(batch_x, batch_len)
-                    output = self.output_layer(output)
-                    output = output.view(output.size()[0] * output.size()[1], -1)
-                    batch_y = batch_y.view(-1)
-                    loss = self.learner_loss[episode.base_task](output, batch_y)
-                    loss.backward()
-                    support_loss += loss.item()
+                output = learner(batch_x, batch_len)
+                output = output.view(output.size()[0] * output.size()[1], -1)
+                batch_y = batch_y.view(-1)
+                output = utils.subset_softmax(output, episode_unique_labels)
+                loss = self.learner_loss[episode.base_task](output, batch_y)
+                loss.backward()
 
-                    relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
-                    pred = make_prediction(output[relevant_indices].detach()).cpu()
-                    all_predictions.extend(pred)
-                    all_labels.extend(batch_y[relevant_indices].cpu())
+                relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
+                pred = make_prediction(output[relevant_indices].detach()).cpu()
+                all_predictions.extend(pred)
+                all_labels.extend(batch_y[relevant_indices].cpu())
 
                 learner_optimizer.step()
-                support_loss /= n_batch + 1
+
+            support_loss = loss.item()
 
             if episode.base_task != 'metaphor':
                 accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
@@ -130,9 +143,9 @@ class SeqMetaModel(nn.Module):
             for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
                 batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                 output = learner(batch_x, batch_len)
-                output = self.output_layer(output)
                 output = output.view(output.size()[0] * output.size()[1], -1)
                 batch_y = batch_y.view(-1)
+                output = utils.subset_softmax(output, episode_unique_labels)
                 loss = self.learner_loss[episode.base_task](output, batch_y)
 
                 if not testing:
@@ -182,21 +195,21 @@ class SeqMetaModel(nn.Module):
         else:
             return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
-    def initialize_output_layer(self, n_classes):
-        self.output_layer = nn.Linear(self.learner.hidden // 2, n_classes).to(self.device)
-
-    def _initialize_with_proto_weights(self, support_loader, n_classes):
-        support_repr, support_label = [], []
-        for batch_x, batch_len, batch_y in support_loader:
-            batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
-            batch_x_repr = self.learner(batch_x, batch_len)
-            support_repr.append(batch_x_repr)
-            support_label.append(batch_y)
-
-        prototypes = self._build_prototypes(support_repr, support_label, n_classes)
-
-        self.output_layer.weight.data = 2 * prototypes
-        self.output_layer.bias.data = torch.norm(prototypes, dim=1)
+    # def initialize_output_layer(self, n_classes):
+    #     self.output_layer = nn.Linear(self.learner.hidden // 2, n_classes).to(self.device)
+    #
+    # def _initialize_with_proto_weights(self, support_loader, n_classes):
+    #     support_repr, support_label = [], []
+    #     for batch_x, batch_len, batch_y in support_loader:
+    #         batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+    #         batch_x_repr = self.learner(batch_x, batch_len)
+    #         support_repr.append(batch_x_repr)
+    #         support_label.append(batch_y)
+    #
+    #     prototypes = self._build_prototypes(support_repr, support_label, n_classes)
+    #
+    #     self.output_layer.weight.data = 2 * prototypes
+    #     self.output_layer.bias.data = torch.norm(prototypes, dim=1)
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr[0].shape[2]

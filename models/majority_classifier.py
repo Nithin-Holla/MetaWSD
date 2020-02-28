@@ -18,7 +18,7 @@ class MajorityClassifier:
     def __init__(self):
         logger.info('Majority classifier instantiated')
 
-    def training(self, train_episodes):
+    def training(self, train_episodes, val_episodes):
         return
 
     def testing(self, test_episodes):

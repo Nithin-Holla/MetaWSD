@@ -1,8 +1,8 @@
 meta_learner: majority
 learner_params:
-  hidden_size: 128
+  hidden_size: 256
   num_outputs:
-    wsd: var
+    wsd: 5612
   embed_dim: 1024
 num_shots:
   wsd: 16

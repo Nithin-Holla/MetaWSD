@@ -55,7 +55,9 @@ def fill_once(sentences, labels):
             label_tracker[l].append(id)
     label_traverse_order = [key for key in sorted(label_counter, key=lambda k: label_counter[k])]
     for lbl in label_traverse_order:
-        if label_counter[lbl] == 1:
+        if label_counter[lbl] == 0:
+            continue
+        elif label_counter[lbl] == 1:
             picked_ids = label_tracker[lbl][0:1]
             support_ids.append(label_tracker[lbl].pop(0))
         else:
@@ -75,7 +77,9 @@ def fill_once(sentences, labels):
 def split_examples(sentences, labels, n_support_examples, n_query_examples):
     sentences, labels = shuffle_list(sentences, labels)
     final_support_list, final_query_list = [], []
-    for _ in range(min(n_support_examples, n_query_examples)):
+    for _ in range(n_support_examples):
+        if len(final_support_list) >= n_support_examples:
+            break
         support_entries, query_entries, remaining_sentences, remaining_labels = fill_once(sentences, labels)
         final_support_list.extend(support_entries)
         final_query_list.extend(query_entries)
@@ -175,14 +179,110 @@ def create_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_trai
     # print('Good test episodes', n_good_test_episodes)
 
 
+def write_single_wsd_set(episode_words, word_splits, n_support_examples, n_query_examples, file_path):
+    for word in episode_words:
+        if len(word_splits[word]['sentences']) <= n_support_examples:
+            continue
+
+        support_examples, query_examples = split_examples(word_splits[word]['sentences'], word_splits[word]['labels'],
+                                                          n_support_examples, n_query_examples)
+
+        word_data = support_examples + query_examples
+        file_name = os.path.join(file_path, word + '.json')
+        utils.write_json(word_data, file_name)
+
+
+def write_multi_wsd_set(n_episodes, words, word_splits, support_samples_per_word, query_samples_per_word, file_path):
+    episodes_written = 0
+    while True:
+        if episodes_written == n_episodes:
+            break
+        redo_episode = False
+        support_examples, query_examples = [], []
+        episode_words = random.sample(words, 4)
+        for word in episode_words:
+            word_labels = set(l for l in itertools.chain(*word_splits[word]['labels']) if l != -1)
+            sampled_labels = random.sample(word_labels, min(support_samples_per_word, len(word_labels)))
+            sentences, labels = [], []
+            for sent, lbl in zip(word_splits[word]['sentences'], word_splits[word]['labels']):
+                if len(set.intersection(set(lbl), set(sampled_labels))) != 0:
+                    lbl = [l if l in sampled_labels else -1 for l in lbl]
+                    labels.append(lbl)
+                    sentences.append(sent)
+            word_support_examples, word_query_examples = split_examples(sentences, labels, support_samples_per_word, query_samples_per_word)
+
+            if len(word_support_examples) < support_samples_per_word or len(word_query_examples) < query_samples_per_word:
+                redo_episode = True
+                break
+
+            support_examples.extend(word_support_examples[:support_samples_per_word])
+            query_examples.extend(word_query_examples[:query_samples_per_word])
+
+        if redo_episode:
+            continue
+
+        word_data = support_examples + query_examples
+        file_name = os.path.join(file_path, str(episodes_written) + '.json')
+        utils.write_json(word_data, file_name)
+        episodes_written += 1
+
+
+def create_multi_wsd_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_train_episodes,
+                          train_path, val_path, test_path):
+    support_samples_per_word = int(n_support_examples / 4)
+    query_samples_per_word = int(n_query_examples / 4)
+    word_splits = {k: v for (k, v) in semcor_wsd_dataset.word_splits.items() if len(v['sentences']) >
+                   (support_samples_per_word + query_samples_per_word)}
+
+    all_words = list(word_splits.keys())
+    random.shuffle(all_words)
+    train_words = all_words[:int(0.6 * len(all_words))]
+    val_words = all_words[int(0.6 * len(all_words)): int(0.8 * len(all_words))]
+    test_words = all_words[int(0.8 * len(all_words)):]
+
+    # Create and write the multi-word train WSD data into disk
+    write_multi_wsd_set(n_train_episodes, train_words, word_splits, support_samples_per_word, query_samples_per_word,
+                        train_path)
+
+    # Filter out seen sentences from the meta-val data
+    train_sentences = itertools.chain(*[word_splits[w]['sentences'] for w in train_words])
+    for word in val_words:
+        sentences, labels = [], []
+        for sent, lbl in zip(word_splits[word]['sentences'], word_splits[word]['labels']):
+            if sent not in train_sentences:
+                sentences.append(sent)
+                labels.append(lbl)
+        word_splits[word]['sentences'] = sentences
+        word_splits[word]['labels'] = labels
+
+    # Create and write the multi-word val WSD data into disk
+    write_single_wsd_set(val_words, word_splits, n_support_examples, n_query_examples, val_path)
+
+    # Filter out seen sentences from the meta-test data
+    val_sentences = itertools.chain(*[word_splits[w]['sentences'] for w in val_words])
+    for word in test_words:
+        sentences, labels = [], []
+        for sent, lbl in zip(word_splits[word]['sentences'], word_splits[word]['labels']):
+            if sent not in train_sentences and sent not in val_sentences:
+                sentences.append(sent)
+                labels.append(lbl)
+        word_splits[word]['sentences'] = sentences
+        word_splits[word]['labels'] = labels
+
+    # Create and write the multi-word test WSD data into disk
+    write_single_wsd_set(test_words, word_splits, n_support_examples, n_query_examples, test_path)
+
+
 if __name__ == '__main__':
     random.seed(42)
 
-    n_episodes = 600
     n_support_examples = 16
     n_query_examples = 16
-    n_train_words = 400
-    n_test_words = 200
+    n_val_words = 208
+    n_test_words = 183
+    n_train_episodes = 10000
+    # n_val_episodes = 2000
+    # n_test_episodes = 2000
 
     # Path for WSD dataset
     base_path = os.path.dirname(os.path.abspath(__file__))
@@ -191,30 +291,35 @@ if __name__ == '__main__':
     # Path for writing the new data
     write_path = os.path.join(base_path, '../../data/semcor_meta')
     os.makedirs(write_path, exist_ok=True)
-    train_path = os.path.join(write_path, 'meta_train_' + str(n_support_examples) + '-' + str(n_query_examples))
-    test_path = os.path.join(write_path, 'meta_test_' + str(n_support_examples) + '-' + str(n_query_examples))
+    train_path = os.path.join(write_path, 'multi_meta_train_' + str(n_support_examples) + '-' + str(n_query_examples))
+    val_path = os.path.join(write_path, 'multi_meta_val_' + str(n_support_examples) + '-' + str(n_query_examples))
+    test_path = os.path.join(write_path, 'multi_meta_test_' + str(n_support_examples) + '-' + str(n_query_examples))
     os.makedirs(train_path, exist_ok=True)
+    os.makedirs(val_path, exist_ok=True)
     os.makedirs(test_path, exist_ok=True)
 
     # Load WSD dataset
     semcor_wsd_dataset = SemCorWSDDataset(semcor_wsd_base_path)
 
     # Create data grouped by word and write to disk
-    create_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_train_words, n_test_words, train_path,
-                test_path)
 
+    create_multi_wsd_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_train_episodes, train_path, val_path, test_path)
+
+    # create_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_train_words, n_test_words, train_path,
+    #             test_path)
+    #
     # Label statistics
-    wsd_train_episodes = utils.generate_wsd_episodes(dir=train_path,
-                                                     n_episodes=n_train_words,
-                                                     n_support_examples=n_support_examples,
-                                                     n_query_examples=n_query_examples,
-                                                     task='wsd',
-                                                     meta_train=True)
-    wsd_test_episodes = utils.generate_wsd_episodes(dir=test_path,
-                                                    n_episodes=n_test_words,
-                                                    n_support_examples=n_support_examples,
-                                                    n_query_examples=n_query_examples,
-                                                    task='wsd',
-                                                    meta_train=False)
-    generate_label_statistics(wsd_train_episodes, 'meta_train_stat.json')
-    generate_label_statistics(wsd_test_episodes, 'meta_test_stat.json')
+    # wsd_val_episodes = utils.generate_wsd_episodes(dir=val_path,
+    #                                                n_episodes=n_val_words,
+    #                                                n_support_examples=n_support_examples,
+    #                                                n_query_examples=n_query_examples,
+    #                                                task='wsd',
+    #                                                meta_train=False)
+    # wsd_test_episodes = utils.generate_wsd_episodes(dir=test_path,
+    #                                                 n_episodes=n_test_words,
+    #                                                 n_support_examples=n_support_examples,
+    #                                                 n_query_examples=n_query_examples,
+    #                                                 task='wsd',
+    #                                                 meta_train=False)
+    # generate_label_statistics(wsd_val_episodes, 'meta_val_stat.json')
+    # generate_label_statistics(wsd_test_episodes, 'meta_test_stat.json')

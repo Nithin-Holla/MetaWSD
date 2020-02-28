@@ -14,7 +14,6 @@ from models.majority_classifier import MajorityClassifier
 from models.maml import MAML
 from models.proto_network import PrototypicalNetwork
 
-
 logger = logging.getLogger('MetaLearningLog')
 coloredlogs.install(logger=logger, level='DEBUG',
                     fmt='%(asctime)s - %(name)s - %(levelname)s'
@@ -30,10 +29,9 @@ def load_config(config_file):
 
 
 def train(config):
-
     # Path for WSD dataset
     wsd_base_path = os.path.join(config['base_path'], '../data/semcor_meta/')
-    wsd_train_path = os.path.join(wsd_base_path, 'meta_train_' + str(config['num_shots']['wsd']) + '-' +
+    wsd_train_path = os.path.join(wsd_base_path, 'multi_meta_train_' + str(config['num_shots']['wsd']) + '-' +
                                   str(config['num_test_samples']['wsd']))
 
     # Generate episodes for WSD
@@ -58,7 +56,27 @@ def train(config):
         raise NotImplementedError
 
     # Meta-training
-    avg_f1 = meta_learner.training(wsd_train_episodes)
+    meta_learner.training(wsd_train_episodes)
+    return meta_learner
+
+
+def test(meta_learner, config):
+    # Path for WSD dataset
+    wsd_base_path = os.path.join(config['base_path'], '../data/semcor_meta/')
+    wsd_val_path = os.path.join(wsd_base_path, 'multi_meta_val_' + str(config['num_shots']['wsd']) + '-' +
+                                str(config['num_test_samples']['wsd']))
+
+    # Generate episodes for WSD
+    logger.info('Generating episodes for WSD')
+    wsd_val_episodes = utils.generate_wsd_episodes(dir=wsd_val_path,
+                                                   n_episodes=config['num_val_episodes']['wsd'],
+                                                   n_support_examples=config['num_shots']['wsd'],
+                                                   n_query_examples=config['num_test_samples']['wsd'],
+                                                   task='wsd')
+    logger.info('Finished generating episodes for WSD')
+
+    # Meta-training
+    avg_f1 = meta_learner.testing(wsd_val_episodes)
     return avg_f1
 
 
@@ -78,8 +96,8 @@ if __name__ == '__main__':
     best_f1 = 0
     for learner_lr in [1, 0.5, 0.01]:
         for meta_lr in [1, 0.5, 0.01]:
-            for hidden_size in [64, 128, 256]:
-                for num_updates in [3, 5]:
+            for hidden_size in [128, 256]:
+                for num_updates in [5]:
                     f1s = []
                     config['learner_params']['hidden_size'] = hidden_size
                     config['learner_lr'] = learner_lr
@@ -88,14 +106,14 @@ if __name__ == '__main__':
                     logger.info('Using configuration: {}'.format(config))
                     for i in range(3):
                         logger.info('Run {}'.format(i + 1))
-                        f1 = train(config)
+                        meta_learner = train(config)
+                        f1 = test(meta_learner, config)
                         f1s.append(f1)
                     avg_f1 = np.mean(f1s)
-                    logger.info('Got average F1: {}', avg_f1)
+                    logger.info('Got average validation F1: {}'.format(avg_f1))
                     if avg_f1 > best_f1:
                         best_config = config
                         best_f1 = avg_f1
-                    exit(0)
 
     logger.info('Tuning finished with best F1 score of {}'.format(best_f1))
     logger.info('Best config: {}'.format(best_config))
