@@ -1,21 +1,19 @@
 import copy
-import threading
+import numpy as np
 
 import torch
 from sklearn import metrics
-from torch import nn
-from torch._utils import ExceptionWrapper
-from torch.nn import functional as F
 
 
 def calculate_metrics(predictions, labels, binary=False):
     averaging = 'binary' if binary else 'macro'
     predictions = torch.stack(predictions).cpu().numpy()
     labels = torch.stack(labels).cpu().numpy()
+    unique_labels = np.unique(labels)
     accuracy = metrics.accuracy_score(labels, predictions)
-    precision = metrics.precision_score(labels, predictions, average=averaging)
-    recall = metrics.recall_score(labels, predictions, average=averaging)
-    f1_score = metrics.f1_score(labels, predictions, average=averaging)
+    precision = metrics.precision_score(labels, predictions, average=averaging, labels=unique_labels)
+    recall = metrics.recall_score(labels, predictions, average=averaging, labels=unique_labels)
+    f1_score = metrics.f1_score(labels, predictions, average=averaging, labels=unique_labels)
     return accuracy, precision, recall, f1_score
 
 
@@ -28,10 +26,10 @@ def make_prediction(output):
     return pred
 
 
-def subset_softmax(output, unique_labels):
-    new_output = torch.full_like(output, -45)
-    new_output[:, unique_labels] = F.log_softmax(output[:, unique_labels], dim=1)
-    return new_output
+# def subset_softmax(output, unique_labels):
+#     new_output = torch.full_like(output, -45)
+#     new_output[:, unique_labels] = F.log_softmax(output[:, unique_labels], dim=1)
+#     return new_output
 
 
 def replicate_model_to_gpus(model, device_ids):

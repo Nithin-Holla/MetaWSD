@@ -1,3 +1,5 @@
+from torch.utils.data import Dataset
+
 
 class Episode:
 
@@ -9,4 +11,14 @@ class Episode:
         self.n_classes = n_classes
 
 
+class EpisodeDataset(Dataset):
+
+    def __init__(self, episodes):
+        self.episodes = episodes
+
+    def __len__(self):
+        return len(self.episodes)
+
+    def __getitem__(self, index):
+        return self.episodes[index]
 

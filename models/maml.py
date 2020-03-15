@@ -5,9 +5,12 @@ import logging
 import os
 import torch
 import numpy as np
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+import datasets.utils
 import models.utils
+from datasets.episode import EpisodeDataset
 from models.seq_meta import SeqMetaModel
 
 logger = logging.getLogger('MAML Log')
@@ -27,6 +30,7 @@ class MAML:
         self.meta_lr = config.get('meta_lr', 1e-3)
         self.meta_weight_decay = config.get('meta_weight_decay', 0.0)
         self.stopping_threshold = config.get('stopping_threshold', 1e-3)
+        self.meta_batch_size = config.get('meta_batch_size', 100)
         self.fomaml = config.get('fomaml', False)
         self.multi_gpu = torch.cuda.device_count() > 1 if 'cuda' in config.get('device', 'cpu') else False
 
@@ -34,7 +38,7 @@ class MAML:
             self.n_devices = torch.cuda.device_count()
             logger.info('Using {} GPUs'.format(self.n_devices))
 
-        if 'seq_meta' in config['meta_model']:
+        if 'seq' in config['meta_model']:
             self.meta_model = SeqMetaModel(config)
 
         if self.fomaml:
@@ -79,33 +83,57 @@ class MAML:
 
     def _synchronize_weights(self):
         for rm in self.replica_meta_models[1:]:
-            rm.load_state_dict(self.meta_model.state_dict())
+            rm.learner.load_state_dict(self.meta_model.learner.state_dict())
+            rm.learner.zero_grad()
 
     def training(self, train_episodes, val_episodes):
         learner_params = [p for p in self.meta_model.learner.parameters() if p.requires_grad]
         meta_optimizer = optim.Adam(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
+        lr_scheduler = optim.lr_scheduler.StepLR(meta_optimizer, step_size=500, gamma=0.5)
         best_loss = float('inf')
         best_f1 = 0
         patience = 0
+        global_step = 0
         model_path = os.path.join(self.base_path, 'saved_models', 'MetaModel-{}.h5'.format(self.stamp))
         logger.info('Model name: MetaModel-{}.h5'.format(self.stamp))
+
+        episode_train_dataset = EpisodeDataset(train_episodes)
+        episode_train_dataloader = DataLoader(episode_train_dataset, batch_size=self.meta_batch_size,
+                                              collate_fn=datasets.utils.prepare_task_batch, shuffle=True)
 
         if self.multi_gpu:
             self.replica_meta_models = self._replicate_model()
 
         for epoch in range(self.meta_epochs):
             logger.info('Starting epoch {}'.format(epoch+1))
-            meta_optimizer.zero_grad()
+            losses, accuracies, precisions, recalls, f1s = [], [], [], [], []
 
-            if not self.multi_gpu:
-                losses, accuracies, precisions, recalls, f1s = self.meta_model(train_episodes, self.updates)
-            else:
-                losses, accuracies, precisions, recalls, f1s = self._multi_gpu_training(train_episodes)
+            for epts in episode_train_dataloader:
+                meta_optimizer.zero_grad()
+                if not self.multi_gpu:
+                    ls, acc, prec, rcl, f1 = self.meta_model(epts, self.updates)
+                else:
+                    ls, acc, prec, rcl, f1 = self._multi_gpu_training(epts)
 
-            meta_optimizer.step()
+                meta_optimizer.step()
+                lr_scheduler.step()
+                global_step += 1
 
-            if self.multi_gpu:
-                self._synchronize_weights()
+                if self.multi_gpu:
+                    self._synchronize_weights()
+
+                losses.extend(ls)
+                accuracies.extend(acc)
+                precisions.extend(prec)
+                recalls.extend(rcl)
+                f1s.extend(f1)
+
+                # Log params and grads into tensorboard
+                for name, param in self.meta_model.named_parameters():
+                    if param.requires_grad and param.grad is not None:
+                        tensorboard_writer.add_histogram('Params/' + name, param.data.view(-1), global_step=global_step)
+                        tensorboard_writer.add_histogram('Grads/' + name, param.grad.data.view(-1),
+                                                         global_step=global_step)
 
             avg_loss = np.mean(losses)
             avg_accuracy = np.mean(accuracies)
@@ -144,12 +172,6 @@ class MAML:
                 logger.info('Loss did not improve')
                 if patience == self.early_stopping:
                     break
-
-            # Log params and grads into tensorboard
-            for name, param in self.meta_model.named_parameters():
-                if param.requires_grad and param.grad is not None:
-                    tensorboard_writer.add_histogram('Params/' + name, param.data.view(-1), global_step=epoch+1)
-                    tensorboard_writer.add_histogram('Grads/' + name, param.grad.data.view(-1), global_step=epoch+1)
 
         self.meta_model.learner.load_state_dict(torch.load(model_path))
         return best_f1

@@ -23,7 +23,7 @@ class PrototypicalNetwork:
         self.early_stopping = config['early_stopping']
         self.stopping_threshold = config.get('stopping_threshold', 1e-3)
 
-        if 'seq_meta' in config['meta_model']:
+        if 'seq' in config['meta_model']:
             self.proto_model = SeqPrototypicalNetwork(config)
 
         logger.info('Prototypical network instantiated')

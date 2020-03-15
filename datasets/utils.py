@@ -38,6 +38,10 @@ def prepare_batch(batch):
     return x, lengths, y
 
 
+def prepare_task_batch(batch):
+    return batch
+
+
 def generate_episodes_from_split_datasets(train_dataset, test_dataset, n_episodes, n_support_examples, n_query_examples, task):
     if n_episodes * n_support_examples > train_dataset.__len__() or n_episodes * n_query_examples > test_dataset.__len__():
         raise Exception('Not enough data available')

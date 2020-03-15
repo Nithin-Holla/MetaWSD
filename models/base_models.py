@@ -5,20 +5,18 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 class RNNSequenceModel(nn.Module):
     def __init__(self, model_params):
         super(RNNSequenceModel, self).__init__()
-        self.hidden = model_params['hidden_size']
+        self.hidden_size = model_params['hidden_size']
         self.embed_dim = model_params['embed_dim']
-        self.output_dim = model_params['num_outputs']['wsd']
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
 
         self.gru = nn.GRU(
             input_size=self.embed_dim,
-            hidden_size=self.hidden,
+            hidden_size=self.hidden_size,
             num_layers=1,
             batch_first=True,
             bidirectional=True
         )
-        self.linear1 = nn.Linear(2 * self.hidden, self.hidden // 2)
-        self.linear2 = nn.Linear(self.hidden // 2, self.output_dim)
+        self.linear = nn.Linear(2 * self.hidden_size, self.hidden_size // 4)
 
         self.dropout = nn.Dropout(p=self.dropout_ratio)
         self.tanh = nn.Tanh()
@@ -39,10 +37,9 @@ class RNNSequenceModel(nn.Module):
         hidden, _ = self.gru(packed)
         hidden, _ = pad_packed_sequence(hidden, batch_first=True)
         hidden = self.tanh(hidden)
-        d = self.tanh(self.linear1(hidden))
+        d = self.tanh(self.linear(hidden))
         dropout = self.dropout(d)
-        out = self.linear2(dropout)
-        return out
+        return dropout
 
 
 class MLPModel(nn.Module):
@@ -51,12 +48,12 @@ class MLPModel(nn.Module):
         super(MLPModel, self).__init__()
         self.embed_dim = model_params['embed_dim']
         self.hidden_size = model_params['hidden_size']
-        self.output_dim = model_params['num_outputs']['wsd']
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
         self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
                                     nn.ReLU(),
-                                    nn.Dropout(p=self.dropout_ratio),
-                                    nn.Linear(self.hidden_size, self.output_dim))
+                                    nn.Linear(self.hidden_size, self.hidden_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(p=self.dropout_ratio))
 
     def forward(self, input, *args):
         out = self.linear(input)

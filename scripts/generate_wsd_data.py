@@ -199,6 +199,7 @@ def write_multi_wsd_set(n_episodes, words, word_splits, support_samples_per_word
             break
         redo_episode = False
         support_examples, query_examples = [], []
+        label_start_id = 0
         episode_words = random.sample(words, 4)
         for word in episode_words:
             word_labels = set(l for l in itertools.chain(*word_splits[word]['labels']) if l != -1)
@@ -206,9 +207,10 @@ def write_multi_wsd_set(n_episodes, words, word_splits, support_samples_per_word
             sentences, labels = [], []
             for sent, lbl in zip(word_splits[word]['sentences'], word_splits[word]['labels']):
                 if len(set.intersection(set(lbl), set(sampled_labels))) != 0:
-                    lbl = [l if l in sampled_labels else -1 for l in lbl]
+                    lbl = [sampled_labels.index(l) + label_start_id if l in sampled_labels else -1 for l in lbl]
                     labels.append(lbl)
                     sentences.append(sent)
+            label_start_id += len(sampled_labels)
             word_support_examples, word_query_examples = split_examples(sentences, labels, support_samples_per_word, query_samples_per_word)
 
             if len(word_support_examples) < support_samples_per_word or len(word_query_examples) < query_samples_per_word:
@@ -280,7 +282,7 @@ if __name__ == '__main__':
     n_query_examples = 16
     n_val_words = 208
     n_test_words = 183
-    n_train_episodes = 10000
+    n_train_episodes = 100000
     # n_val_episodes = 2000
     # n_test_episodes = 2000
 
@@ -291,9 +293,9 @@ if __name__ == '__main__':
     # Path for writing the new data
     write_path = os.path.join(base_path, '../../data/semcor_meta')
     os.makedirs(write_path, exist_ok=True)
-    train_path = os.path.join(write_path, 'multi_meta_train_' + str(n_support_examples) + '-' + str(n_query_examples))
-    val_path = os.path.join(write_path, 'multi_meta_val_' + str(n_support_examples) + '-' + str(n_query_examples))
-    test_path = os.path.join(write_path, 'multi_meta_test_' + str(n_support_examples) + '-' + str(n_query_examples))
+    train_path = os.path.join(write_path, 'meta_train_' + str(n_support_examples) + '-' + str(n_query_examples))
+    val_path = os.path.join(write_path, 'meta_val_' + str(n_support_examples) + '-' + str(n_query_examples))
+    test_path = os.path.join(write_path, 'meta_test_' + str(n_support_examples) + '-' + str(n_query_examples))
     os.makedirs(train_path, exist_ok=True)
     os.makedirs(val_path, exist_ok=True)
     os.makedirs(test_path, exist_ok=True)

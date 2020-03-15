@@ -15,7 +15,6 @@ class SemCorWSDDataset(data.Dataset):
     def __init__(self, data_path):
         self.data_path = data_path
         self.sense_inventory = self._load_sense_inventory()
-        self.sense_label_assignment = self._assign_sense_labels()
         self.sentences, self.lemmatized_sentences, self.labels = self._load_data()
         self.word_splits = self._split_by_word()
 
@@ -24,15 +23,6 @@ class SemCorWSDDataset(data.Dataset):
         with open(sense_inventory_file, 'r', encoding='utf8') as f:
             sense_inventory = json.load(f)
         return sense_inventory
-
-    def _assign_sense_labels(self):
-        lbl_index = 0
-        sense_labels = {}
-        for lemma in self.sense_inventory:
-            for sense in self.sense_inventory[lemma]:
-                sense_labels[sense] = lbl_index
-                lbl_index += 1
-        return sense_labels
 
     def _load_data(self):
         sentences = []
@@ -50,7 +40,7 @@ class SemCorWSDDataset(data.Dataset):
                     lemma = child.attrib['lemma'].lower() if 'lemma' in child.attrib else token.lower()
                     break_level = child.attrib['break_level']
                     if 'sense' in child.attrib and lemma in self.sense_inventory:
-                        sense_lbl = self.sense_label_assignment[child.attrib['sense']]
+                        sense_lbl = self.sense_inventory[lemma].index(child.attrib['sense'])
                     else:
                         sense_lbl = -1
                     if break_level == 'PARAGRAPH_BREAK' or break_level == 'SENTENCE_BREAK':

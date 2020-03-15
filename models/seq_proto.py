@@ -38,12 +38,11 @@ class SeqPrototypicalNetwork(nn.Module):
         self.vectors = config.get('vectors', 'glove')
 
         if self.vectors == 'elmo':
-            self.elmo = Elmo(
-                options_file="https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x1024_128_2048cnn_1xhighway/elmo_2x1024_128_2048cnn_1xhighway_options.json",
-                weight_file="https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x1024_128_2048cnn_1xhighway/elmo_2x1024_128_2048cnn_1xhighway_weights.hdf5",
-                num_output_representations=1,
-                dropout=0,
-                requires_grad=False)
+            self.elmo = Elmo(options_file="https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_options.json",
+                             weight_file="https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_weights.hdf5",
+                             num_output_representations=1,
+                             dropout=0,
+                             requires_grad=False)
         elif self.vectors == 'glove':
             self.glove = torchtext.vocab.GloVe(name='840B', dim=300)
 
@@ -93,7 +92,6 @@ class SeqPrototypicalNetwork(nn.Module):
 
             batch_x, batch_len, batch_y = next(iter(episode.support_loader))
             batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
-            episode_unique_labels = torch.unique(batch_y.view(-1)[batch_y.view(-1) != -1])
 
             self.train()
             support_repr, support_label = [], []
@@ -107,9 +105,7 @@ class SeqPrototypicalNetwork(nn.Module):
             # Run on query
             query_loss = 0.0
             all_predictions, all_labels = [], []
-
-            if testing:
-                self.eval()
+            self.eval()
 
             for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
                 batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
@@ -117,7 +113,6 @@ class SeqPrototypicalNetwork(nn.Module):
                 output = self._normalized_distances(prototypes, batch_x_repr)
                 output = output.view(output.size()[0] * output.size()[1], -1)
                 batch_y = batch_y.view(-1)
-                output = utils.subset_softmax(output, episode_unique_labels)
                 loss = self.loss_fn[episode.base_task](output, batch_y)
                 query_loss += loss.item()
 
@@ -152,19 +147,14 @@ class SeqPrototypicalNetwork(nn.Module):
 
         return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
-    def _build_prototypes(self, data_repr, data_label, num_outputs, subset_classes=None):
+    def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr[0].shape[2]
         data_repr = torch.cat(tuple([x.view(-1, n_dim) for x in data_repr]), dim=0)
         data_label = torch.cat(tuple([y.view(-1) for y in data_label]), dim=0)
 
         prototypes = torch.zeros((num_outputs, n_dim), device=self.device)
 
-        if subset_classes is None or len(subset_classes) == 0:
-            class_prototypes_required = range(num_outputs)
-        else:
-            class_prototypes_required = subset_classes
-
-        for c in class_prototypes_required:
+        for c in num_outputs:
             idx = torch.nonzero(data_label == c).view(-1)
             if idx.nelement() != 0:
                 prototypes[c] = torch.mean(data_repr[idx], dim=0)
