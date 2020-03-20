@@ -28,6 +28,7 @@ class SeqBaselineModel(nn.Module):
         self.base_path = config['base_path']
         self.early_stopping = config['early_stopping']
         self.learner_lr = config.get('learner_lr', 1e-3)
+        self.output_lr = config.get('output_lr', 0.1)
         self.weight_decay = config.get('meta_weight_decay', 0.0)
 
         if 'seq' in config['learner_model']:
@@ -92,12 +93,24 @@ class SeqBaselineModel(nn.Module):
         return batch_x, batch_len, batch_y
 
     def forward(self, episodes, updates=1, testing=False):
+
+        if not testing:
+            updates = 1
+            # Learner optimizer
+            learner_params = [p for n, p in self.named_parameters() if p.requires_grad]
+            learner_optimizer = optim.Adam(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+        else:
+            # Learner optimizer
+            learner_params = [p for n, p in self.named_parameters() if p.requires_grad and 'output_layer' not in n]
+            learner_optimizer = optim.SGD(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+
+            # Output optimizer
+            output_params = [p for n, p in self.named_parameters() if p.requires_grad and 'output_layer' in n]
+            output_optimizer = optim.SGD(output_params, lr=self.output_lr)
+
         support_losses = []
         query_losses, query_accuracies, query_precisions, query_recalls, query_f1s = [], [], [], [], []
         n_episodes = len(episodes)
-
-        params = [p for p in self.parameters() if p.requires_grad]
-        optimizer = optim.Adam(params, lr=self.learner_lr, weight_decay=self.weight_decay)
 
         for episode_id, episode in enumerate(episodes):
 
@@ -109,14 +122,19 @@ class SeqBaselineModel(nn.Module):
 
             all_predictions, all_labels = [], []
 
-            output = self.learner(batch_x, batch_len)
-            output = output.view(output.size()[0] * output.size()[1], -1)
-            batch_y = batch_y.view(-1)
-            output = utils.subset_softmax(output, episode_unique_labels)
-            loss = self.learner_loss[episode.base_task](output, batch_y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            for _ in range(updates):
+                output = self.learner(batch_x, batch_len)
+                output = output.view(output.size()[0] * output.size()[1], -1)
+                batch_y = batch_y.view(-1)
+                output = utils.subset_softmax(output, episode_unique_labels)
+                loss = self.learner_loss[episode.base_task](output, batch_y)
+                if testing:
+                    output_optimizer.zero_grad()
+                learner_optimizer.zero_grad()
+                loss.backward()
+                if testing:
+                    output_optimizer.step()
+                learner_optimizer.step()
 
             relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
             pred = make_prediction(output[relevant_indices].detach()).cpu()
@@ -152,9 +170,9 @@ class SeqBaselineModel(nn.Module):
                 loss = self.learner_loss[episode.base_task](output, batch_y)
 
                 if not testing:
-                    optimizer.zero_grad()
+                    learner_optimizer.zero_grad()
                     loss.backward()
-                    optimizer.step()
+                    learner_optimizer.step()
 
                 query_loss += loss.item()
 
