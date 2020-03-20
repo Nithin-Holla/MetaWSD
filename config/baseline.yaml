@@ -15,12 +15,12 @@ num_updates: 5
 num_test_samples:
   wsd: 16
 num_train_episodes:
-  wsd: 100000
+  wsd: 10000
 num_val_episodes:
-  wsd: 208
+  wsd: 146
 num_test_episodes:
-  wsd: 183
-num_meta_epochs: 1000
-early_stopping: 5
+  wsd: 197
+num_meta_epochs: 25
+early_stopping: 2
 device: cuda:0
 proto_maml: false

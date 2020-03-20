@@ -105,7 +105,9 @@ class SeqPrototypicalNetwork(nn.Module):
             # Run on query
             query_loss = 0.0
             all_predictions, all_labels = [], []
-            self.eval()
+            for module in self.learner.modules():
+                if isinstance(module, nn.Dropout):
+                    module.eval()
 
             for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
                 batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
@@ -154,7 +156,7 @@ class SeqPrototypicalNetwork(nn.Module):
 
         prototypes = torch.zeros((num_outputs, n_dim), device=self.device)
 
-        for c in num_outputs:
+        for c in range(num_outputs):
             idx = torch.nonzero(data_label == c).view(-1)
             if idx.nelement() != 0:
                 prototypes[c] = torch.mean(data_repr[idx], dim=0)

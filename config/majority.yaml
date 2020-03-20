@@ -9,9 +9,9 @@ num_shots:
 num_test_samples:
   wsd: 16
 num_train_episodes:
-  wsd: 100000
+  wsd: 10000
 num_val_episodes:
-  wsd: 208
+  wsd: 146
 num_test_episodes:
-  wsd: 183
+  wsd: 197
 device: cuda:0

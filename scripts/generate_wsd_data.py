@@ -3,7 +3,6 @@ import random
 from collections import Counter, defaultdict
 import itertools
 import os
-import numpy as np
 
 import sys
 
@@ -77,7 +76,7 @@ def fill_once(sentences, labels):
 def split_examples(sentences, labels, n_support_examples, n_query_examples):
     sentences, labels = shuffle_list(sentences, labels)
     final_support_list, final_query_list = [], []
-    for _ in range(n_support_examples):
+    while True:
         if len(final_support_list) >= n_support_examples:
             break
         support_entries, query_entries, remaining_sentences, remaining_labels = fill_once(sentences, labels)
@@ -85,6 +84,12 @@ def split_examples(sentences, labels, n_support_examples, n_query_examples):
         final_query_list.extend(query_entries)
         sentences = remaining_sentences
         labels = remaining_labels
+        if len(sentences) == 0:
+            break
+    if len(final_support_list) < n_support_examples:
+        terminal_examples = final_query_list[len(final_support_list) - n_support_examples:]
+        final_query_list = final_query_list[:len(final_support_list) - n_support_examples]
+        final_support_list += terminal_examples
     return final_support_list, final_query_list
 
 
@@ -96,89 +101,6 @@ def filter_seen_sentences(examples, seen_sentences):
     return filtered_examples
 
 
-# def reorder_examples(sentences, labels):
-#     sentences, labels = shuffle_list(sentences, labels)
-#     # Add one sample for each of the unique labels first
-#     unique_sample_ids = []
-#     unique_labels = np.unique([l for l in list(itertools.chain(*labels)) if l != -1])
-#     label_tracker = {k: False for k in unique_labels}
-#     for id, lbl in enumerate(labels):
-#         unseen_labels = set([k for k in label_tracker if label_tracker[k] is False])
-#         found_labels = set([l for l in lbl if l != -1])
-#         if len(unseen_labels) == 0:
-#             break
-#         if set.intersection(found_labels, unseen_labels):
-#             label_tracker.update({k: True for k in found_labels})
-#             unique_sample_ids.append(id)
-#
-#     sampled_sentences = [sent for (id, sent) in enumerate(sentences) if id in unique_sample_ids]
-#     sampled_labels = [lbl for (id, lbl) in enumerate(labels) if id in unique_sample_ids]
-#
-#     # Add remaining sentences/labels
-#     for id, (sent, lbl) in enumerate(zip(sentences, labels)):
-#         if id not in unique_sample_ids:
-#             sampled_sentences.append(sent)
-#             sampled_labels.append(lbl)
-#     return sampled_sentences, sampled_labels
-
-
-def create_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_train_words, n_test_words, train_path,
-                test_path):
-    # Generate word splits
-    word_splits = {k: v for (k, v) in semcor_wsd_dataset.word_splits.items() if len(v['sentences']) >
-                   (n_support_examples + n_query_examples)}
-    all_words = list(word_splits.keys())
-    random.shuffle(all_words)
-
-    do_test = False
-    train_sentences = []
-    n_good_test_episodes = 0
-    for word_id, word in enumerate(all_words):
-        if word_id == n_train_words:
-            do_test = True
-        if word_id == n_train_words + n_test_words:
-            break
-
-        word_data = []
-        word_data_counter = 0
-        if do_test:
-            file_name = os.path.join(test_path, word + '.json')
-        else:
-            file_name = os.path.join(train_path, word + '.json')
-
-        # sentences, labels = reorder_examples(word_splits[word]['sentences'], word_splits[word]['labels'])
-        support_examples, query_examples = split_examples(word_splits[word]['sentences'], word_splits[word]['labels'],
-                                                          n_support_examples, n_query_examples)
-        if not do_test:
-            train_sentences.extend([ex['sentence'] for ex in support_examples])
-
-        if do_test:
-            query_examples = filter_seen_sentences(query_examples, train_sentences)
-
-        word_data = support_examples + query_examples
-        utils.write_json(word_data, file_name)
-
-    #     for sent, label in zip(sentences, labels):
-    #         if do_test and word_data_counter > n_support_examples and sent in train_sentences:
-    #             continue
-    #         word_data.append({'sentence': sent, 'label': label})
-    #         word_data_counter += 1
-    #         if not do_test:
-    #             train_sentences.append(sent)
-    #         # if not do_test and len(word_data[word]) == n_support_examples + n_query_examples:
-    #         #     break
-    #
-    #     if do_test and len(word_data) >= (n_support_examples + n_query_examples):
-    #         n_good_test_episodes += 1
-    #
-    #     if do_test:
-    #         print('{} -> {}'.format(word, len(word_data)))
-    #     # random.shuffle(word_data)
-    #     utils.write_json(word_data, file_name)
-    #
-    # print('Good test episodes', n_good_test_episodes)
-
-
 def write_single_wsd_set(episode_words, word_splits, n_support_examples, n_query_examples, file_path):
     for word in episode_words:
         if len(word_splits[word]['sentences']) <= n_support_examples:
@@ -186,6 +108,11 @@ def write_single_wsd_set(episode_words, word_splits, n_support_examples, n_query
 
         support_examples, query_examples = split_examples(word_splits[word]['sentences'], word_splits[word]['labels'],
                                                           n_support_examples, n_query_examples)
+
+        # Remove words that have only one sense in the query set
+        unique_query_labels = set([l for ex in query_examples for l in ex['label'] if l != -1])
+        if len(unique_query_labels) == 1:
+            continue
 
         word_data = support_examples + query_examples
         file_name = os.path.join(file_path, word + '.json')
@@ -239,8 +166,8 @@ def create_multi_wsd_data(semcor_wsd_dataset, n_support_examples, n_query_exampl
     all_words = list(word_splits.keys())
     random.shuffle(all_words)
     train_words = all_words[:int(0.6 * len(all_words))]
-    val_words = all_words[int(0.6 * len(all_words)): int(0.8 * len(all_words))]
-    test_words = all_words[int(0.8 * len(all_words)):]
+    val_words = all_words[int(0.6 * len(all_words)): int(0.75 * len(all_words))]
+    test_words = all_words[int(0.75 * len(all_words)):]
 
     # Create and write the multi-word train WSD data into disk
     write_multi_wsd_set(n_train_episodes, train_words, word_splits, support_samples_per_word, query_samples_per_word,
@@ -280,9 +207,9 @@ if __name__ == '__main__':
 
     n_support_examples = 16
     n_query_examples = 16
-    n_val_words = 208
-    n_test_words = 183
-    n_train_episodes = 100000
+    n_val_words = 113
+    n_test_words = 101
+    n_train_episodes = 50000
     # n_val_episodes = 2000
     # n_test_episodes = 2000
 
@@ -307,9 +234,6 @@ if __name__ == '__main__':
 
     create_multi_wsd_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_train_episodes, train_path, val_path, test_path)
 
-    # create_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_train_words, n_test_words, train_path,
-    #             test_path)
-    #
     # Label statistics
     # wsd_val_episodes = utils.generate_wsd_episodes(dir=val_path,
     #                                                n_episodes=n_val_words,

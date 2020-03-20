@@ -2,9 +2,10 @@ import higher
 import torchtext
 from allennlp.modules import Elmo
 from allennlp.modules.elmo import batch_to_ids
+from transformers import BertTokenizer
 
 from models import utils
-from models.base_models import RNNSequenceModel, MLPModel
+from models.base_models import RNNSequenceModel, MLPModel, BERTSequenceModel
 from torch import nn, optim
 
 import coloredlogs
@@ -26,11 +27,14 @@ class SeqMetaModel(nn.Module):
         super(SeqMetaModel, self).__init__()
         self.base_path = config['base_path']
         self.learner_lr = config.get('learner_lr', 1e-3)
+        self.output_lr = config.get('output_lr', 0.1)
 
         if 'seq' in config['learner_model']:
             self.learner = RNNSequenceModel(config['learner_params'])
         elif 'mlp' in config['learner_model']:
             self.learner = MLPModel(config['learner_params'])
+        elif 'bert' in config['learner_model']:
+            self.learner = BERTSequenceModel(config['learner_params'])
 
         self.proto_maml = config.get('proto_maml', False)
         self.fomaml = config.get('fomaml', False)
@@ -44,6 +48,8 @@ class SeqMetaModel(nn.Module):
                              requires_grad=False)
         elif self.vectors == 'glove':
             self.glove = torchtext.vocab.GloVe(name='840B', dim=300)
+        elif self.vectors == 'bert':
+            self.bert_tokenizer = BertTokenizer.from_pretrained('bert-large-cased')
 
         self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
@@ -82,6 +88,14 @@ class SeqMetaModel(nn.Module):
                     sent_emb = self.glove.get_vecs_by_tokens(sent, lower_case_backup=True)
                     vec_batch_x[i, :len(sent_emb)] = sent_emb
                 batch_x = vec_batch_x.to(self.device)
+            elif self.vectors == 'bert':
+                max_batch_len = max(batch_len)
+                input_ids = torch.zeros((len(batch_x), max_batch_len)).long()
+                for i, sent in enumerate(batch_x):
+                    sent_token_ids = self.bert_tokenizer.encode(sent, add_special_tokens=False)
+                    input_ids[i, :len(sent_token_ids)] = torch.tensor(sent_token_ids)
+                batch_x = input_ids.to(self.device)
+
         batch_len = torch.tensor(batch_len).to(self.device)
         batch_y = torch.tensor(batch_y).to(self.device)
         return batch_x, batch_len, batch_y
@@ -103,7 +117,7 @@ class SeqMetaModel(nn.Module):
 
             with torch.backends.cudnn.flags(enabled=self.fomaml or testing or not isinstance(self.learner, RNNSequenceModel)), \
                  higher.innerloop_ctx(self.learner, self.learner_optimizer,
-                                      copy_initial_weights=self.fomaml,
+                                      copy_initial_weights=False,
                                       track_higher_grads=(not self.fomaml and not testing)) as (flearner, diffopt):
 
                 all_predictions, all_labels = [], []
@@ -121,7 +135,7 @@ class SeqMetaModel(nn.Module):
                     # Update the output layer parameters
                     output_grads = torch.autograd.grad(loss, self.output_layer.parameters(), retain_graph=True)
                     for param, ograd in zip(self.output_layer.parameters(), output_grads):
-                        param.data -= self.learner_lr * ograd
+                        param.data -= self.output_lr * ograd
 
                     # Update the shared parameters
                     diffopt.step(loss)
@@ -162,9 +176,9 @@ class SeqMetaModel(nn.Module):
 
                     if not testing:
                         if self.fomaml:
-                            meta_grads = torch.autograd.grad(loss, flearner.parameters())
+                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters() if p.requires_grad])
                         else:
-                            meta_grads = torch.autograd.grad(loss, flearner.parameters(time=0))
+                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad])
 
                     query_loss += loss.item()
 
@@ -193,10 +207,10 @@ class SeqMetaModel(nn.Module):
             query_f1s.append(f1_score)
 
             if not testing:
-                for param, meta_grad in zip(self.learner.parameters(), meta_grads):
-                    if param.grad is not None and param.requires_grad:
+                for param, meta_grad in zip([p for p in self.learner.parameters() if p.requires_grad], meta_grads):
+                    if param.grad is not None:
                         param.grad += meta_grad.detach()
-                    elif param.requires_grad:
+                    else:
                         param.grad = meta_grad.detach()
 
         # Average the accumulated gradients
@@ -214,6 +228,8 @@ class SeqMetaModel(nn.Module):
         if isinstance(self.learner, RNNSequenceModel):
             self.output_layer = nn.Linear(self.learner.hidden_size // 4, n_classes).to(self.device)
         elif isinstance(self.learner, MLPModel):
+            self.output_layer = nn.Linear(self.learner.hidden_size, n_classes).to(self.device)
+        elif isinstance(self.learner, BERTSequenceModel):
             self.output_layer = nn.Linear(self.learner.hidden_size, n_classes).to(self.device)
 
     def _initialize_with_proto_weights(self, support_loader, n_classes):

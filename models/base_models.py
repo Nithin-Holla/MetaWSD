@@ -1,5 +1,6 @@
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from transformers import BertModel
 
 
 class RNNSequenceModel(nn.Module):
@@ -58,3 +59,29 @@ class MLPModel(nn.Module):
     def forward(self, input, *args):
         out = self.linear(input)
         return out
+
+
+class BERTSequenceModel(nn.Module):
+
+    def __init__(self, model_params):
+        super(BERTSequenceModel, self).__init__()
+        self.embed_dim = model_params['embed_dim']
+        self.hidden_size = model_params['hidden_size']
+        self.dropout_ratio = model_params.get('dropout_ratio', 0)
+        self.bert = BertModel.from_pretrained('bert-large-cased')
+        self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
+                                    nn.ReLU())
+
+        self.bert.pooler.dense.weight.requires_grad = False
+        self.bert.pooler.dense.bias.requires_grad = False
+
+        tunable_layers = {str(l) for l in range(20, 24)}
+        for name, param in self.bert.named_parameters():
+            if not set.intersection(set(name.split('.')), tunable_layers):
+                param.requires_grad = False
+
+    def forward(self, input, input_len):
+        attention_mask = (input.detach() != 0).float()
+        output, _ = self.bert(input, attention_mask=attention_mask)
+        output = self.linear(output)
+        return output

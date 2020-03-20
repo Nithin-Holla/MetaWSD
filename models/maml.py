@@ -161,7 +161,7 @@ class MAML:
 
             tensorboard_writer.add_scalar('Loss/val', avg_loss, global_step=epoch+1)
 
-            if avg_loss < best_loss - self.stopping_threshold:
+            if avg_f1 > best_f1 + self.stopping_threshold:
                 patience = 0
                 best_loss = avg_loss
                 best_f1 = avg_f1
