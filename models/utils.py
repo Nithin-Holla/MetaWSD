@@ -3,6 +3,7 @@ import numpy as np
 
 import torch
 from sklearn import metrics
+from torch.nn import functional as F
 
 
 def calculate_metrics(predictions, labels, binary=False):
@@ -26,10 +27,10 @@ def make_prediction(output):
     return pred
 
 
-# def subset_softmax(output, unique_labels):
-#     new_output = torch.full_like(output, -45)
-#     new_output[:, unique_labels] = F.log_softmax(output[:, unique_labels], dim=1)
-#     return new_output
+def subset_softmax(output, unique_labels):
+    new_output = torch.full_like(output, -45)
+    new_output[:, unique_labels] = F.log_softmax(output[:, unique_labels], dim=1)
+    return new_output
 
 
 def replicate_model_to_gpus(model, device_ids):

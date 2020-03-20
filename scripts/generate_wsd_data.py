@@ -134,7 +134,7 @@ def write_multi_wsd_set(n_episodes, words, word_splits, support_samples_per_word
             sentences, labels = [], []
             for sent, lbl in zip(word_splits[word]['sentences'], word_splits[word]['labels']):
                 if len(set.intersection(set(lbl), set(sampled_labels))) != 0:
-                    lbl = [sampled_labels.index(l) + label_start_id if l in sampled_labels else -1 for l in lbl]
+                    lbl = [l if l in sampled_labels else -1 for l in lbl]
                     labels.append(lbl)
                     sentences.append(sent)
             label_start_id += len(sampled_labels)
@@ -220,9 +220,9 @@ if __name__ == '__main__':
     # Path for writing the new data
     write_path = os.path.join(base_path, '../../data/semcor_meta')
     os.makedirs(write_path, exist_ok=True)
-    train_path = os.path.join(write_path, 'meta_train_' + str(n_support_examples) + '-' + str(n_query_examples))
-    val_path = os.path.join(write_path, 'meta_val_' + str(n_support_examples) + '-' + str(n_query_examples))
-    test_path = os.path.join(write_path, 'meta_test_' + str(n_support_examples) + '-' + str(n_query_examples))
+    train_path = os.path.join(write_path, 'meta_train_baseline_' + str(n_support_examples) + '-' + str(n_query_examples))
+    val_path = os.path.join(write_path, 'meta_val_baseline_' + str(n_support_examples) + '-' + str(n_query_examples))
+    test_path = os.path.join(write_path, 'meta_test_baseline_' + str(n_support_examples) + '-' + str(n_query_examples))
     os.makedirs(train_path, exist_ok=True)
     os.makedirs(val_path, exist_ok=True)
     os.makedirs(test_path, exist_ok=True)

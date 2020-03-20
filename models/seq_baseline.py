@@ -1,9 +1,10 @@
 import torchtext
 from allennlp.modules import Elmo
 from allennlp.modules.elmo import batch_to_ids
+from transformers import BertTokenizer
 
 from models import utils
-from models.base_models import RNNSequenceModel, MLPModel
+from models.base_models import RNNSequenceModel, MLPModel, BERTSequenceModel
 from torch import nn
 from torch import optim
 
@@ -33,6 +34,8 @@ class SeqBaselineModel(nn.Module):
             self.learner = RNNSequenceModel(config['learner_params'])
         elif 'mlp' in config['learner_model']:
             self.learner = MLPModel(config['learner_params'])
+        elif 'bert' in config['learner_model']:
+            self.learner = BERTSequenceModel(config['learner_params'])
 
         self.vectors = config.get('vectors', 'glove')
 
@@ -44,15 +47,15 @@ class SeqBaselineModel(nn.Module):
                              requires_grad=False)
         elif self.vectors == 'glove':
             self.glove = torchtext.vocab.GloVe(name='840B', dim=300)
+        elif self.vectors == 'bert':
+            self.bert_tokenizer = BertTokenizer.from_pretrained('bert-large-cased')
 
         self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
             if task == 'metaphor':
                 self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
             else:
-                self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
-
-        self.output_layer = None
+                self.learner_loss[task] = nn.NLLLoss(ignore_index=-1)
 
         if config.get('trained_baseline', None):
             self.learner.load_state_dict(torch.load(
@@ -64,17 +67,26 @@ class SeqBaselineModel(nn.Module):
         self.to(self.device)
 
     def vectorize(self, batch_x, batch_len, batch_y):
-        if self.vectors == 'elmo':
-            char_ids = batch_to_ids(batch_x)
-            char_ids = char_ids.to(self.device)
-            batch_x = self.elmo(char_ids)['elmo_representations'][0]
-        elif self.vectors == 'glove':
-            max_batch_len = max(batch_len)
-            vec_batch_x = torch.ones((len(batch_x), max_batch_len, 300))
-            for i, sent in enumerate(batch_x):
-                sent_emb = self.glove.get_vecs_by_tokens(sent, lower_case_backup=True)
-                vec_batch_x[i, :len(sent_emb)] = sent_emb
-            batch_x = vec_batch_x.to(self.device)
+        with torch.no_grad():
+            if self.vectors == 'elmo':
+                char_ids = batch_to_ids(batch_x)
+                char_ids = char_ids.to(self.device)
+                batch_x = self.elmo(char_ids)['elmo_representations'][0]
+            elif self.vectors == 'glove':
+                max_batch_len = max(batch_len)
+                vec_batch_x = torch.ones((len(batch_x), max_batch_len, 300))
+                for i, sent in enumerate(batch_x):
+                    sent_emb = self.glove.get_vecs_by_tokens(sent, lower_case_backup=True)
+                    vec_batch_x[i, :len(sent_emb)] = sent_emb
+                batch_x = vec_batch_x.to(self.device)
+            elif self.vectors == 'bert':
+                max_batch_len = max(batch_len)
+                input_ids = torch.zeros((len(batch_x), max_batch_len)).long()
+                for i, sent in enumerate(batch_x):
+                    sent_token_ids = self.bert_tokenizer.encode(sent, add_special_tokens=False)
+                    input_ids[i, :len(sent_token_ids)] = torch.tensor(sent_token_ids)
+                batch_x = input_ids.to(self.device)
+
         batch_len = torch.tensor(batch_len).to(self.device)
         batch_y = torch.tensor(batch_y).to(self.device)
         return batch_x, batch_len, batch_y
@@ -84,24 +96,23 @@ class SeqBaselineModel(nn.Module):
         query_losses, query_accuracies, query_precisions, query_recalls, query_f1s = [], [], [], [], []
         n_episodes = len(episodes)
 
-        for episode_id, episode in enumerate(episodes):
-            self.initialize_output_layer(episode.n_classes)
+        params = [p for p in self.parameters() if p.requires_grad]
+        optimizer = optim.Adam(params, lr=self.learner_lr, weight_decay=self.weight_decay)
 
-            params = [p for p in self.parameters() if p.requires_grad] + \
-                     [p for p in self.output_layer.parameters() if p.requires_grad]
-            optimizer = optim.Adam(params, lr=self.learner_lr, weight_decay=self.weight_decay)
+        for episode_id, episode in enumerate(episodes):
 
             batch_x, batch_len, batch_y = next(iter(episode.support_loader))
             batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+            episode_unique_labels = torch.unique(batch_y.view(-1)[batch_y.view(-1) != -1])
 
             self.train()
 
             all_predictions, all_labels = [], []
 
             output = self.learner(batch_x, batch_len)
-            output = self.output_layer(output)
             output = output.view(output.size()[0] * output.size()[1], -1)
             batch_y = batch_y.view(-1)
+            output = utils.subset_softmax(output, episode_unique_labels)
             loss = self.learner_loss[episode.base_task](output, batch_y)
             optimizer.zero_grad()
             loss.backward()
@@ -135,9 +146,9 @@ class SeqBaselineModel(nn.Module):
             for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
                 batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                 output = self.learner(batch_x, batch_len)
-                output = self.output_layer(output)
                 output = output.view(output.size()[0] * output.size()[1], -1)
                 batch_y = batch_y.view(-1)
+                output = utils.subset_softmax(output, episode_unique_labels)
                 loss = self.learner_loss[episode.base_task](output, batch_y)
 
                 if not testing:
@@ -177,8 +188,8 @@ class SeqBaselineModel(nn.Module):
         else:
             return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
-    def initialize_output_layer(self, n_classes):
-        if isinstance(self.learner, RNNSequenceModel):
-            self.output_layer = nn.Linear(self.learner.hidden_size // 4, n_classes).to(self.device)
-        elif isinstance(self.learner, MLPModel):
-            self.output_layer = nn.Linear(self.learner.hidden_size, n_classes).to(self.device)
+    # def initialize_output_layer(self, n_classes):
+    #     if isinstance(self.learner, RNNSequenceModel):
+    #         self.output_layer = nn.Linear(self.learner.hidden_size // 4, n_classes).to(self.device)
+    #     elif isinstance(self.learner, MLPModel):
+    #         self.output_layer = nn.Linear(self.learner.hidden_size, n_classes).to(self.device)

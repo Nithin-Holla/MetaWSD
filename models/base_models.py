@@ -8,6 +8,7 @@ class RNNSequenceModel(nn.Module):
         super(RNNSequenceModel, self).__init__()
         self.hidden_size = model_params['hidden_size']
         self.embed_dim = model_params['embed_dim']
+        self.output_dim = model_params['num_outputs']['wsd']
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
 
         self.gru = nn.GRU(
@@ -18,6 +19,7 @@ class RNNSequenceModel(nn.Module):
             bidirectional=True
         )
         self.linear = nn.Linear(2 * self.hidden_size, self.hidden_size // 4)
+        self.output_layer = nn.Linear(self.hidden_size // 4, self.output_dim)
 
         self.dropout = nn.Dropout(p=self.dropout_ratio)
         self.tanh = nn.Tanh()
@@ -40,7 +42,8 @@ class RNNSequenceModel(nn.Module):
         hidden = self.tanh(hidden)
         d = self.tanh(self.linear(hidden))
         dropout = self.dropout(d)
-        return dropout
+        out = self.output_layer(dropout)
+        return out
 
 
 class MLPModel(nn.Module):
@@ -49,15 +52,18 @@ class MLPModel(nn.Module):
         super(MLPModel, self).__init__()
         self.embed_dim = model_params['embed_dim']
         self.hidden_size = model_params['hidden_size']
+        self.output_dim = model_params['num_outputs']['wsd']
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
         self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
                                     nn.ReLU(),
                                     nn.Linear(self.hidden_size, self.hidden_size),
                                     nn.ReLU(),
                                     nn.Dropout(p=self.dropout_ratio))
+        self.output_layer = nn.Linear(self.hidden_size, self.output_dim)
 
     def forward(self, input, *args):
         out = self.linear(input)
+        out = self.output_layer(out)
         return out
 
 
@@ -67,10 +73,12 @@ class BERTSequenceModel(nn.Module):
         super(BERTSequenceModel, self).__init__()
         self.embed_dim = model_params['embed_dim']
         self.hidden_size = model_params['hidden_size']
+        self.output_dim = model_params['num_outputs']['wsd']
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
         self.bert = BertModel.from_pretrained('bert-large-cased')
         self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
                                     nn.ReLU())
+        self.output_layer = nn.Linear(self.hidden_size, self.output_dim)
 
         self.bert.pooler.dense.weight.requires_grad = False
         self.bert.pooler.dense.bias.requires_grad = False
@@ -84,4 +92,5 @@ class BERTSequenceModel(nn.Module):
         attention_mask = (input.detach() != 0).float()
         output, _ = self.bert(input, attention_mask=attention_mask)
         output = self.linear(output)
+        output = self.output_layer(output)
         return output
