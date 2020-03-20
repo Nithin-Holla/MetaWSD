@@ -52,8 +52,6 @@ class MLPModel(nn.Module):
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
         self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
                                     nn.ReLU(),
-                                    nn.Linear(self.hidden_size, self.hidden_size),
-                                    nn.ReLU(),
                                     nn.Dropout(p=self.dropout_ratio))
 
     def forward(self, input, *args):
@@ -70,7 +68,8 @@ class BERTSequenceModel(nn.Module):
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
         self.bert = BertModel.from_pretrained('bert-large-cased')
         self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
-                                    nn.ReLU())
+                                    nn.ReLU(),
+                                    nn.Dropout(p=self.dropout_ratio))
 
         self.bert.pooler.dense.weight.requires_grad = False
         self.bert.pooler.dense.bias.requires_grad = False
