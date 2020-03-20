@@ -166,10 +166,10 @@ class MAML:
                 best_loss = avg_loss
                 best_f1 = avg_f1
                 torch.save(self.meta_model.learner.state_dict(), model_path)
-                logger.info('Saving the model since the loss improved')
+                logger.info('Saving the model since the F1 improved')
             else:
                 patience += 1
-                logger.info('Loss did not improve')
+                logger.info('F1 did not improve')
                 if patience == self.early_stopping:
                     break
 
