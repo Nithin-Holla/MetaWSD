@@ -58,11 +58,11 @@ if __name__ == '__main__':
 
     # Path for WSD dataset
     wsd_base_path = os.path.join(config['base_path'], '../data/semcor_meta/')
-    wsd_train_path = os.path.join(wsd_base_path, 'meta_train_' + str(config['num_shots']['wsd']) + '-' +
+    wsd_train_path = os.path.join(wsd_base_path, 'meta_train_baseline_' + str(config['num_shots']['wsd']) + '-' +
                                   str(config['num_test_samples']['wsd']))
-    wsd_val_path = os.path.join(wsd_base_path, 'meta_val_' + str(config['num_shots']['wsd']) + '-' +
+    wsd_val_path = os.path.join(wsd_base_path, 'meta_val_baseline_' + str(config['num_shots']['wsd']) + '-' +
                                 str(config['num_test_samples']['wsd']))
-    wsd_test_path = os.path.join(wsd_base_path, 'meta_test_' + str(config['num_shots']['wsd']) + '-' +
+    wsd_test_path = os.path.join(wsd_base_path, 'meta_test_baseline_' + str(config['num_shots']['wsd']) + '-' +
                                  str(config['num_test_samples']['wsd']))
 
     # Generate episodes for WSD
