@@ -146,15 +146,17 @@ if __name__ == '__main__':
         test_f1s.append(test_f1)
     avg_val_f1 = np.mean(val_f1s)
     avg_test_f1 = np.mean(test_f1s)
+    std_test_f1 = np.std(test_f1s)
     run_dict['avg_val_f1'] = avg_val_f1
     run_dict['avg_test_f1'] = avg_test_f1
+    run_dict['std_test_f1'] = std_test_f1
     logger.info('Got average validation F1: {}'.format(avg_val_f1))
     logger.info('Got average test F1: {}'.format(avg_test_f1))
 
     results_columns = ['model_name', 'output_lr', 'learner_lr', 'meta_lr', 'hidden_size', 'num_updates', 'dropout_ratio', 'meta_weight_decay'] \
                       + ['val_' + str(k) + '_f1' for k in range(1, args.n_runs + 1)] \
                       + ['test_' + str(k) + '_f1' for k in range(1, args.n_runs + 1)] \
-                      + ['avg_val_f1'] + ['avg_test_f1']
+                      + ['avg_val_f1', 'avg_test_f1', 'std_test_f1']
     if os.path.isfile(args.results_file):
         results_df = pd.read_csv(args.results_file)
         results_df = results_df.append(run_dict, ignore_index=True)
