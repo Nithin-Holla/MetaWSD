@@ -49,7 +49,7 @@ class SeqMetaModel(nn.Module):
         elif self.vectors == 'glove':
             self.glove = torchtext.vocab.GloVe(name='840B', dim=300)
         elif self.vectors == 'bert':
-            self.bert_tokenizer = BertTokenizer.from_pretrained('bert-large-cased')
+            self.bert_tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
 
         self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
@@ -89,10 +89,10 @@ class SeqMetaModel(nn.Module):
                     vec_batch_x[i, :len(sent_emb)] = sent_emb
                 batch_x = vec_batch_x.to(self.device)
             elif self.vectors == 'bert':
-                max_batch_len = max(batch_len)
+                max_batch_len = max(batch_len) + 2
                 input_ids = torch.zeros((len(batch_x), max_batch_len)).long()
                 for i, sent in enumerate(batch_x):
-                    sent_token_ids = self.bert_tokenizer.encode(sent, add_special_tokens=False)
+                    sent_token_ids = self.bert_tokenizer.encode(sent, add_special_tokens=True)
                     input_ids[i, :len(sent_token_ids)] = torch.tensor(sent_token_ids)
                 batch_x = input_ids.to(self.device)
 
