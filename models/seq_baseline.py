@@ -1,7 +1,7 @@
 import torchtext
 from allennlp.modules import Elmo
 from allennlp.modules.elmo import batch_to_ids
-from transformers import BertTokenizer
+from transformers import BertTokenizer, get_constant_schedule_with_warmup, AdamW
 
 from models import utils
 from models.base_models import RNNSequenceModel, MLPModel, BERTSequenceModel
@@ -81,10 +81,10 @@ class SeqBaselineModel(nn.Module):
                     vec_batch_x[i, :len(sent_emb)] = sent_emb
                 batch_x = vec_batch_x.to(self.device)
             elif self.vectors == 'bert':
-                max_batch_len = max(batch_len)
+                max_batch_len = max(batch_len) + 2
                 input_ids = torch.zeros((len(batch_x), max_batch_len)).long()
                 for i, sent in enumerate(batch_x):
-                    sent_token_ids = self.bert_tokenizer.encode(sent, add_special_tokens=False)
+                    sent_token_ids = self.bert_tokenizer.encode(sent, add_special_tokens=True)
                     input_ids[i, :len(sent_token_ids)] = torch.tensor(sent_token_ids)
                 batch_x = input_ids.to(self.device)
 
@@ -98,7 +98,12 @@ class SeqBaselineModel(nn.Module):
             updates = 1
             # Learner optimizer
             learner_params = [p for n, p in self.named_parameters() if p.requires_grad]
-            learner_optimizer = optim.Adam(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+            if isinstance(self.meta_model.learner, BERTSequenceModel):
+                learner_optimizer = AdamW(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+                lr_scheduler = get_constant_schedule_with_warmup(learner_optimizer, num_warmup_steps=100)
+            else:
+                learner_optimizer = optim.Adam(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+                lr_scheduler = optim.lr_scheduler.StepLR(learner_optimizer, step_size=500, gamma=0.5)
         else:
             # Learner optimizer
             learner_params = [p for n, p in self.named_parameters() if p.requires_grad and 'output_layer' not in n]
@@ -135,6 +140,8 @@ class SeqBaselineModel(nn.Module):
                 if testing:
                     output_optimizer.step()
                 learner_optimizer.step()
+                if not testing:
+                    lr_scheduler.step()
 
             relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
             pred = make_prediction(output[relevant_indices].detach()).cpu()
@@ -173,6 +180,7 @@ class SeqBaselineModel(nn.Module):
                     learner_optimizer.zero_grad()
                     loss.backward()
                     learner_optimizer.step()
+                    lr_scheduler.step()
 
                 query_loss += loss.item()
 
