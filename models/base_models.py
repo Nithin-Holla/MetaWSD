@@ -74,10 +74,10 @@ class BERTSequenceModel(nn.Module):
         self.bert.pooler.dense.weight.requires_grad = False
         self.bert.pooler.dense.bias.requires_grad = False
 
-        tunable_layers = {str(l) for l in range(8, 12)}
-        for name, param in self.bert.named_parameters():
-            if not set.intersection(set(name.split('.')), tunable_layers):
-                param.requires_grad = False
+        # tunable_layers = {str(l) for l in range(8, 12)}
+        # for name, param in self.bert.named_parameters():
+        #     if not set.intersection(set(name.split('.')), tunable_layers):
+        #         param.requires_grad = False
 
     def forward(self, input, input_len):
         attention_mask = (input.detach() != 0).float()
