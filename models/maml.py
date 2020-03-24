@@ -91,11 +91,11 @@ class MAML:
     def initialize_optimizer_scheduler(self):
         learner_params = [p for p in self.meta_model.learner.parameters() if p.requires_grad]
         if isinstance(self.meta_model.learner, BERTSequenceModel):
-            meta_optimizer = optim.Adam(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
-            lr_scheduler = optim.lr_scheduler.StepLR(meta_optimizer, step_size=500, gamma=0.5)
-        else:
             meta_optimizer = AdamW(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
             lr_scheduler = get_constant_schedule_with_warmup(meta_optimizer, num_warmup_steps=100)
+        else:
+            meta_optimizer = optim.Adam(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
+            lr_scheduler = optim.lr_scheduler.StepLR(meta_optimizer, step_size=500, gamma=0.5)
         return meta_optimizer, lr_scheduler
 
     def training(self, train_episodes, val_episodes):

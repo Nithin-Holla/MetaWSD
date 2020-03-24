@@ -75,11 +75,11 @@ class SeqPrototypicalNetwork(nn.Module):
     def initialize_optimizer_scheduler(self):
         learner_params = [p for p in self.learner.parameters() if p.requires_grad]
         if isinstance(self.learner, BERTSequenceModel):
-            self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
-            self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=500, gamma=0.5)
-        else:
             self.optimizer = AdamW(learner_params, lr=self.lr, weight_decay=self.weight_decay)
             self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps=100)
+        else:
+            self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
+            self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=500, gamma=0.5)
 
     def vectorize(self, batch_x, batch_len, batch_y):
         with torch.no_grad():
