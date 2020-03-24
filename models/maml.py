@@ -7,10 +7,12 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from transformers import AdamW, get_constant_schedule_with_warmup
 
 import datasets.utils
 import models.utils
 from datasets.episode import EpisodeDataset
+from models.base_models import BERTSequenceModel
 from models.seq_meta import SeqMetaModel
 
 logger = logging.getLogger('MAML Log')
@@ -86,10 +88,18 @@ class MAML:
             rm.learner.load_state_dict(self.meta_model.learner.state_dict())
             rm.learner.zero_grad()
 
-    def training(self, train_episodes, val_episodes):
+    def initialize_optimizer_scheduler(self):
         learner_params = [p for p in self.meta_model.learner.parameters() if p.requires_grad]
-        meta_optimizer = optim.Adam(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
-        lr_scheduler = optim.lr_scheduler.StepLR(meta_optimizer, step_size=500, gamma=0.5)
+        if isinstance(self.meta_model.learner, BERTSequenceModel):
+            meta_optimizer = optim.Adam(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
+            lr_scheduler = optim.lr_scheduler.StepLR(meta_optimizer, step_size=500, gamma=0.5)
+        else:
+            meta_optimizer = AdamW(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
+            lr_scheduler = get_constant_schedule_with_warmup(meta_optimizer, num_warmup_steps=100)
+        return meta_optimizer, lr_scheduler
+
+    def training(self, train_episodes, val_episodes):
+        meta_optimizer, lr_scheduler = self.initialize_optimizer_scheduler()
         best_loss = float('inf')
         best_f1 = 0
         patience = 0
@@ -166,10 +176,10 @@ class MAML:
                 best_loss = avg_loss
                 best_f1 = avg_f1
                 torch.save(self.meta_model.learner.state_dict(), model_path)
-                logger.info('Saving the model since the loss improved')
+                logger.info('Saving the model since the F1 improved')
             else:
                 patience += 1
-                logger.info('Loss did not improve')
+                logger.info('F1 did not improve')
                 if patience == self.early_stopping:
                     break
 

@@ -1,13 +1,13 @@
 meta_learner: baseline
 meta_model: seq
-learner_model: seq
+learner_model: mlp
 learner_params:
   hidden_size: 256
   num_outputs:
     wsd: 5612
-  embed_dim: 300
+  embed_dim: 1024
   dropout_ratio: 0
-vectors: glove
+vectors: elmo
 output_lr: 0.1
 learner_lr: 0.01
 num_shots:

@@ -9,9 +9,10 @@ import coloredlogs
 import logging
 import os
 import torch
+from transformers import BertTokenizer, AdamW, get_constant_schedule_with_warmup
 
 from models import utils
-from models.base_models import RNNSequenceModel, MLPModel
+from models.base_models import RNNSequenceModel, MLPModel, BERTSequenceModel
 from models.loss import BCEWithLogitsLossAndIgnoreIndex
 from models.utils import make_prediction
 
@@ -33,6 +34,8 @@ class SeqPrototypicalNetwork(nn.Module):
             self.learner = RNNSequenceModel(config['learner_params'])
         elif 'mlp' in config['learner_model']:
             self.learner = MLPModel(config['learner_params'])
+        elif 'bert' in config['learner_model']:
+            self.learner = BERTSequenceModel(config['learner_params'])
 
         self.num_outputs = config['learner_params']['num_outputs']
         self.vectors = config.get('vectors', 'glove')
@@ -45,6 +48,8 @@ class SeqPrototypicalNetwork(nn.Module):
                              requires_grad=False)
         elif self.vectors == 'glove':
             self.glove = torchtext.vocab.GloVe(name='840B', dim=300)
+        elif self.vectors == 'bert':
+            self.bert_tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
 
         self.loss_fn = {}
         for task in config['learner_params']['num_outputs']:
@@ -59,27 +64,44 @@ class SeqPrototypicalNetwork(nn.Module):
             ))
             logger.info('Loaded trained learner model {}'.format(config['trained_learner']))
 
-        learner_params = [p for p in self.learner.parameters() if p.requires_grad]
-        self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
-
         self.device = torch.device(config.get('device', 'cpu'))
         self.to(self.device)
 
         if self.vectors == 'elmo':
             self.elmo.to(self.device)
 
+        self.initialize_optimizer_scheduler()
+
+    def initialize_optimizer_scheduler(self):
+        learner_params = [p for p in self.learner.parameters() if p.requires_grad]
+        if isinstance(self.learner, BERTSequenceModel):
+            self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
+            self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=500, gamma=0.5)
+        else:
+            self.optimizer = AdamW(learner_params, lr=self.lr, weight_decay=self.weight_decay)
+            self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps=100)
+
     def vectorize(self, batch_x, batch_len, batch_y):
-        if self.vectors == 'elmo':
-            char_ids = batch_to_ids(batch_x)
-            char_ids = char_ids.to(self.device)
-            batch_x = self.elmo(char_ids)['elmo_representations'][0]
-        elif self.vectors == 'glove':
-            max_batch_len = max(batch_len)
-            vec_batch_x = torch.ones((len(batch_x), max_batch_len, 300))
-            for i, sent in enumerate(batch_x):
-                sent_emb = self.glove.get_vecs_by_tokens(sent, lower_case_backup=True)
-                vec_batch_x[i, :len(sent_emb)] = sent_emb
-            batch_x = vec_batch_x.to(self.device)
+        with torch.no_grad():
+            if self.vectors == 'elmo':
+                char_ids = batch_to_ids(batch_x)
+                char_ids = char_ids.to(self.device)
+                batch_x = self.elmo(char_ids)['elmo_representations'][0]
+            elif self.vectors == 'glove':
+                max_batch_len = max(batch_len)
+                vec_batch_x = torch.ones((len(batch_x), max_batch_len, 300))
+                for i, sent in enumerate(batch_x):
+                    sent_emb = self.glove.get_vecs_by_tokens(sent, lower_case_backup=True)
+                    vec_batch_x[i, :len(sent_emb)] = sent_emb
+                batch_x = vec_batch_x.to(self.device)
+            elif self.vectors == 'bert':
+                max_batch_len = max(batch_len) + 2
+                input_ids = torch.zeros((len(batch_x), max_batch_len)).long()
+                for i, sent in enumerate(batch_x):
+                    sent_token_ids = self.bert_tokenizer.encode(sent, add_special_tokens=True)
+                    input_ids[i, :len(sent_token_ids)] = torch.tensor(sent_token_ids)
+                batch_x = input_ids.to(self.device)
+
         batch_len = torch.tensor(batch_len).to(self.device)
         batch_y = torch.tensor(batch_y).to(self.device)
         return batch_x, batch_len, batch_y
@@ -122,6 +144,7 @@ class SeqPrototypicalNetwork(nn.Module):
                     self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()
+                    self.lr_scheduler.step()
 
                 relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
                 all_predictions.extend(make_prediction(output[relevant_indices]).cpu())

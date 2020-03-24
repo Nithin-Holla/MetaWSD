@@ -63,16 +63,16 @@ class PrototypicalNetwork:
 
             tensorboard_writer.add_scalar('Loss/val', avg_loss, global_step=epoch + 1)
 
-            if avg_loss < best_loss - self.stopping_threshold:
+            if avg_f1 > best_f1 + self.stopping_threshold:
                 patience = 0
                 best_loss = avg_loss
                 best_f1 = avg_f1
                 torch.save(self.proto_model.learner.state_dict(), model_path)
-                logger.info('Saving the model since the loss improved')
+                logger.info('Saving the model since the F1 improved')
                 logger.info('')
             else:
                 patience += 1
-                logger.info('Loss did not improve')
+                logger.info('F1 did not improve')
                 logger.info('')
                 if patience == self.early_stopping:
                     break
