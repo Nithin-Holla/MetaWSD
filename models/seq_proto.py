@@ -70,6 +70,8 @@ class SeqPrototypicalNetwork(nn.Module):
         if self.vectors == 'elmo':
             self.elmo.to(self.device)
 
+        self.initialize_optimizer_scheduler()
+
     def initialize_optimizer_scheduler(self):
         learner_params = [p for p in self.learner.parameters() if p.requires_grad]
         if isinstance(self.learner, BERTSequenceModel):
