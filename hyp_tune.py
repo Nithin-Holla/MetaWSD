@@ -93,16 +93,9 @@ if __name__ == '__main__':
     config['learner_params']['dropout_ratio'] = args.dropout_ratio
     config['output_lr'] = args.output_lr
     config['learner_lr'] = args.learner_lr
-    if config['meta_learner'] == 'maml' or config['meta_learner'] == 'proto_net':
-        config['meta_lr'] = args.meta_lr
-        config['meta_weight_decay'] = args.meta_weight_decay
-    else:
-        config['meta_lr'] = 0
-        config['meta_weight_decay'] = 0
-    if config['meta_learner'] == 'maml':
-        config['num_updates'] = args.num_updates
-    else:
-        config['num_updates'] = 1
+    config['meta_lr'] = args.meta_lr
+    config['meta_weight_decay'] = args.meta_weight_decay
+    config['num_updates'] = args.num_updates
     logger.info('Using configuration: {}'.format(config))
 
     if config['meta_learner'] == 'maml':
