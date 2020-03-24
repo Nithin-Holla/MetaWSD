@@ -98,7 +98,7 @@ class SeqBaselineModel(nn.Module):
             updates = 1
             # Learner optimizer
             learner_params = [p for n, p in self.named_parameters() if p.requires_grad]
-            if isinstance(self.meta_model.learner, BERTSequenceModel):
+            if isinstance(self.learner, BERTSequenceModel):
                 learner_optimizer = AdamW(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
                 lr_scheduler = get_constant_schedule_with_warmup(learner_optimizer, num_warmup_steps=100)
             else:
