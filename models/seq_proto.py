@@ -9,7 +9,7 @@ import coloredlogs
 import logging
 import os
 import torch
-from transformers import BertTokenizer
+from transformers import BertTokenizer, AdamW, get_constant_schedule_with_warmup
 
 from models import utils
 from models.base_models import RNNSequenceModel, MLPModel, BERTSequenceModel
@@ -64,14 +64,20 @@ class SeqPrototypicalNetwork(nn.Module):
             ))
             logger.info('Loaded trained learner model {}'.format(config['trained_learner']))
 
-        learner_params = [p for p in self.learner.parameters() if p.requires_grad]
-        self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
-
         self.device = torch.device(config.get('device', 'cpu'))
         self.to(self.device)
 
         if self.vectors == 'elmo':
             self.elmo.to(self.device)
+
+    def initialize_optimizer_scheduler(self):
+        learner_params = [p for p in self.learner.parameters() if p.requires_grad]
+        if isinstance(self.learner, BERTSequenceModel):
+            self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
+            self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=500, gamma=0.5)
+        else:
+            self.optimizer = AdamW(learner_params, lr=self.lr, weight_decay=self.weight_decay)
+            self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps=100)
 
     def vectorize(self, batch_x, batch_len, batch_y):
         with torch.no_grad():
@@ -136,6 +142,7 @@ class SeqPrototypicalNetwork(nn.Module):
                     self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()
+                    self.lr_scheduler.step()
 
                 relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
                 all_predictions.extend(make_prediction(output[relevant_indices]).cpu())
