@@ -232,13 +232,15 @@ class SeqMetaModel(nn.Module):
     def initialize_output_layer(self, n_classes):
         if isinstance(self.learner, RNNSequenceModel):
             stdv = 1.0 / math.sqrt(self.learner.hidden_size // 4)
-            self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.hidden_size // 4), device=self.device, requires_grad=True) + stdv
-            self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device, requires_grad=True) + stdv
+            self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.hidden_size // 4), device=self.device) + stdv
+            self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device) + stdv
         elif isinstance(self.learner, MLPModel) or isinstance(self.learner, BERTSequenceModel):
             stdv = 1.0 / math.sqrt(self.learner.hidden_size)
             self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.hidden_size),
-                                                              device=self.device, requires_grad=True) + stdv
-            self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device, requires_grad=True) + stdv
+                                                              device=self.device) + stdv
+            self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device) + stdv
+        self.output_layer_weight.requires_grad = True
+        self.output_layer_bias.requires_grad = True
 
     def _initialize_with_proto_weights(self, support_loader, n_classes):
         support_repr, support_label = [], []
