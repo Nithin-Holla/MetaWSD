@@ -242,8 +242,8 @@ class SeqMetaModel(nn.Module):
 
         prototypes = self._build_prototypes(support_repr, support_label, n_classes)
 
-        self.output_layer.weight.data = 2 * prototypes
-        self.output_layer.bias.data = torch.norm(prototypes, dim=1)
+        self.output_layer.weight = 2 * prototypes
+        self.output_layer.bias = torch.norm(prototypes, dim=1)
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr[0].shape[2]
