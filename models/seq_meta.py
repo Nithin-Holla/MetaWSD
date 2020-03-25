@@ -235,7 +235,7 @@ class SeqMetaModel(nn.Module):
             self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.hidden_size // 4), device=self.device, requires_grad=True) + stdv
             self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device, requires_grad=True) + stdv
         elif isinstance(self.learner, MLPModel) or isinstance(self.learner, BERTSequenceModel):
-            stdv = 1 / math.sqrt(self.learner.hidden_size)
+            stdv = 1.0 / math.sqrt(self.learner.hidden_size)
             self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.hidden_size),
                                                               device=self.device, requires_grad=True) + stdv
             self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device, requires_grad=True) + stdv
@@ -251,7 +251,7 @@ class SeqMetaModel(nn.Module):
         prototypes = self._build_prototypes(support_repr, support_label, n_classes)
 
         self.output_layer_weight = 2 * prototypes
-        self.output_layer_bias = torch.norm(prototypes, dim=1)
+        self.output_layer_bias = -torch.norm(prototypes, dim=1)
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr[0].shape[2]
