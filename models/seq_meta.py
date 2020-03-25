@@ -137,9 +137,8 @@ class SeqMetaModel(nn.Module):
                     loss = self.learner_loss[episode.base_task](output, batch_y)
 
                     # Update the output layer parameters
-                    output_weight_grad = torch.autograd.grad(loss, self.output_layer_weight, retain_graph=True)[0]
+                    output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
                     self.output_layer_weight.data -= self.output_lr * output_weight_grad
-                    output_bias_grad = torch.autograd.grad(loss, self.output_layer_bias, retain_graph=True)[0]
                     self.output_layer_bias.data -= self.output_lr * output_bias_grad
 
                     # Update the shared parameters
