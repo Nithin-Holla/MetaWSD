@@ -1,3 +1,5 @@
+import math
+
 import higher
 import torchtext
 from allennlp.modules import Elmo
@@ -7,6 +9,7 @@ from transformers import BertTokenizer
 from models import utils
 from models.base_models import RNNSequenceModel, MLPModel, BERTSequenceModel
 from torch import nn, optim
+from torch.nn import functional as F
 
 import coloredlogs
 import logging
@@ -58,7 +61,8 @@ class SeqMetaModel(nn.Module):
             else:
                 self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
 
-        self.output_layer = None
+        self.output_layer_weight = None
+        self.output_layer_bias = None
 
         if config.get('trained_learner', False):
             self.learner.load_state_dict(torch.load(
@@ -133,9 +137,10 @@ class SeqMetaModel(nn.Module):
                     loss = self.learner_loss[episode.base_task](output, batch_y)
 
                     # Update the output layer parameters
-                    output_grads = torch.autograd.grad(loss, self.output_layer.parameters(), retain_graph=True)
-                    for param, ograd in zip(self.output_layer.parameters(), output_grads):
-                        param.data -= self.output_lr * ograd
+                    output_weight_grad = torch.autograd.grad(loss, self.output_layer_weight, retain_graph=True)[0]
+                    self.output_layer_weight.data -= self.output_lr * output_weight_grad
+                    output_bias_grad = torch.autograd.grad(loss, self.output_layer_bias, retain_graph=True)[0]
+                    self.output_layer_bias.data -= self.output_lr * output_bias_grad
 
                     # Update the shared parameters
                     diffopt.step(loss)
@@ -226,11 +231,14 @@ class SeqMetaModel(nn.Module):
 
     def initialize_output_layer(self, n_classes):
         if isinstance(self.learner, RNNSequenceModel):
-            self.output_layer = nn.Linear(self.learner.hidden_size // 4, n_classes).to(self.device)
-        elif isinstance(self.learner, MLPModel):
-            self.output_layer = nn.Linear(self.learner.hidden_size, n_classes).to(self.device)
-        elif isinstance(self.learner, BERTSequenceModel):
-            self.output_layer = nn.Linear(self.learner.hidden_size, n_classes).to(self.device)
+            stdv = 1.0 / math.sqrt(self.learner.hidden_size // 4)
+            self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.hidden_size // 4), device=self.device, requires_grad=True) + stdv
+            self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device, requires_grad=True) + stdv
+        elif isinstance(self.learner, MLPModel) or isinstance(self.learner, BERTSequenceModel):
+            stdv = 1 / math.sqrt(self.learner.hidden_size)
+            self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.hidden_size),
+                                                              device=self.device, requires_grad=True) + stdv
+            self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device, requires_grad=True) + stdv
 
     def _initialize_with_proto_weights(self, support_loader, n_classes):
         support_repr, support_label = [], []
@@ -242,8 +250,8 @@ class SeqMetaModel(nn.Module):
 
         prototypes = self._build_prototypes(support_repr, support_label, n_classes)
 
-        self.output_layer.weight = 2 * prototypes
-        self.output_layer.bias = torch.norm(prototypes, dim=1)
+        self.output_layer_weight = 2 * prototypes
+        self.output_layer_bias = torch.norm(prototypes, dim=1)
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr[0].shape[2]
@@ -258,3 +266,6 @@ class SeqMetaModel(nn.Module):
                 prototypes[c] = torch.mean(data_repr[idx], dim=0)
 
         return prototypes
+
+    def output_layer(self, input):
+        return F.linear(input, self.output_layer_weight, self.output_layer_bias)
