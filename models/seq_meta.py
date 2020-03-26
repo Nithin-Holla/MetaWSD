@@ -248,7 +248,7 @@ class SeqMetaModel(nn.Module):
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr.shape[2]
         data_repr = data_repr.view(-1, n_dim)
-        data_label = data_label.view(-1, n_dim)
+        data_label = data_label.view(-1)
 
         prototypes = torch.zeros((num_outputs, n_dim), device=self.device)
 
