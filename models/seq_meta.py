@@ -241,9 +241,13 @@ class SeqMetaModel(nn.Module):
         self.output_layer_bias.requires_grad = True
 
     def _initialize_with_proto_weights(self, support_repr, support_label, n_classes):
-        prototypes = self._build_prototypes(support_repr, support_label, n_classes)
+        with torch.set_grad_enabled(not self.fomaml):
+            prototypes = self._build_prototypes(support_repr, support_label, n_classes)
         self.output_layer_weight = 2 * prototypes
         self.output_layer_bias = -torch.norm(prototypes, dim=1)**2
+        if self.fomaml:
+            self.output_layer_weight.requires_grad = True
+            self.output_layer_bias.requires_grad = True
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr.shape[2]
