@@ -10,16 +10,16 @@ learner_params:
 vectors: glove
 learner_lr: 0.1
 num_shots:
-  wsd: 8
+  wsd: 32
 num_updates: 5
 num_test_samples:
-  wsd: 8
+  wsd: 32
 num_train_episodes:
   wsd: 10000
 num_val_episodes:
-  wsd: 167
+  wsd: 84
 num_test_episodes:
-  wsd: 264
+  wsd: 129
 num_meta_epochs: 25
 early_stopping: 2
 device: cuda:0
