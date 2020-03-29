@@ -2,14 +2,14 @@ meta_learner: maml
 fomaml: True
 proto_maml: False
 meta_model: seq
-learner_model: bert
+learner_model: mlp
 learner_params:
-  hidden_size: 192
+  hidden_size: 256
   num_outputs:
     wsd: var
-  embed_dim: 768
+  embed_dim: 1024
   dropout_ratio: 0
-vectors: bert
+vectors: elmo
 output_lr: 0.1
 learner_lr: 0.01
 meta_lr: 0.001
