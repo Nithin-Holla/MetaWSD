@@ -2,14 +2,14 @@ meta_learner: maml
 fomaml: True
 proto_maml: False
 meta_model: seq
-learner_model: mlp
+learner_model: seq
 learner_params:
   hidden_size: 256
   num_outputs:
     wsd: var
-  embed_dim: 1024
+  embed_dim: 300
   dropout_ratio: 0
-vectors: elmo
+vectors: glove
 output_lr: 0.1
 learner_lr: 0.01
 meta_lr: 0.001
@@ -26,5 +26,5 @@ num_val_episodes:
 num_test_episodes:
   wsd: 129
 num_meta_epochs: 25
-early_stopping: 1
+early_stopping: 2
 device: cuda:0
