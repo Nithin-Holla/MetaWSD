@@ -8,6 +8,7 @@ learner_params:
   embed_dim: 300
   dropout_ratio: 0
 vectors: glove
+output_lr: 0.1
 learner_lr: 0.1
 num_shots:
   wsd: 8
