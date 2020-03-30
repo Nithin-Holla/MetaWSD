@@ -13,7 +13,7 @@ vectors: elmo
 output_lr: 0.1
 learner_lr: 0.01
 meta_lr: 0.001
-meta_batch_size: 32
+meta_batch_size: 16
 num_shots:
   wsd: 8
 num_updates: 5
