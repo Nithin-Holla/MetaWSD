@@ -13,6 +13,7 @@ from datasets import utils
 from models.baseline import Baseline
 from models.majority_classifier import MajorityClassifier
 from models.maml import MAML
+from models.nearest_neighbor import NearestNeighborClassifier
 from models.proto_network import PrototypicalNetwork
 
 
@@ -96,6 +97,8 @@ if __name__ == '__main__':
         meta_learner = Baseline(config)
     elif config['meta_learner'] == 'majority':
         meta_learner = MajorityClassifier()
+    elif config['meta_learner'] == 'nearest_neighbor':
+        meta_learner = NearestNeighborClassifier(config)
     else:
         raise NotImplementedError
 
