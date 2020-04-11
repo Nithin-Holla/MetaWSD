@@ -4,6 +4,7 @@ learner_params:
   num_outputs:
     wsd: var
   embed_dim: 1024
+vectors: elmo
 num_shots:
   wsd: 8
 num_updates: 5
