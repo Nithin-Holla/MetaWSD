@@ -19,7 +19,7 @@ class MajorityClassifier:
         logger.info('Majority classifier instantiated')
 
     def training(self, train_episodes, val_episodes):
-        return
+        return 0
 
     def testing(self, test_episodes):
         episode_accuracies, episode_precisions, episode_recalls, episodes_f1s = [], [], [], []

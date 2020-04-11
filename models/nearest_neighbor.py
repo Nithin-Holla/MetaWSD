@@ -64,21 +64,21 @@ class NearestNeighborClassifier():
         return batch_x, batch_len, batch_y
 
     def training(self, train_episodes, val_episodes):
-        return
+        return 0
 
     def testing(self, test_episodes):
         episode_accuracies, episode_precisions, episode_recalls, episodes_f1s = [], [], [], []
         for episode_id, episode in enumerate(test_episodes):
             batch_x, batch_len, batch_y = next(iter(episode.support_loader))
             support_repr, _, support_labels = self.vectorize(batch_x, batch_len, batch_y)
-            support_repr = support_repr.view(support_repr.shape[0] * support_repr.shape[1], -1)
+            support_repr = support_repr.reshape(support_repr.shape[0] * support_repr.shape[1], -1)
             support_labels = support_labels.view(-1)
             support_repr = support_repr[support_labels != -1].cpu().numpy()
             support_labels = support_labels[support_labels != -1].cpu().numpy()
 
             batch_x, batch_len, batch_y = next(iter(episode.query_loader))
             query_repr, _, true_labels = self.vectorize(batch_x, batch_len, batch_y)
-            query_repr = query_repr.view(query_repr.shape[0] * query_repr.shape[1], -1)
+            query_repr = query_repr.reshape(query_repr.shape[0] * query_repr.shape[1], -1)
             true_labels = true_labels.view(-1)
             query_repr = query_repr[true_labels != -1].cpu().numpy()
             true_labels = true_labels[true_labels != -1].cpu().numpy()
