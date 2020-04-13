@@ -60,7 +60,7 @@ class SeqPrototypicalNetwork(nn.Module):
 
         if config.get('trained_learner', False):
             self.learner.load_state_dict(torch.load(
-                os.path.join(self.base, 'saved_models', config['trained_learner'])
+                os.path.join(self.base_path, 'saved_models', config['trained_learner'])
             ))
             logger.info('Loaded trained learner model {}'.format(config['trained_learner']))
 
