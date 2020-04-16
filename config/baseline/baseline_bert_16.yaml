@@ -9,18 +9,18 @@ learner_params:
   dropout_ratio: 0
 vectors: bert
 output_lr: 0.1
-learner_lr: 0.001
+learner_lr: 0.00005
 num_shots:
-  wsd: 8
+  wsd: 16
 num_updates: 7
 num_test_samples:
-  wsd: 8
+  wsd: 16
 num_train_episodes:
   wsd: 10000
 num_val_episodes:
-  wsd: 167
+  wsd: 146
 num_test_episodes:
-  wsd: 264
+  wsd: 197
 num_meta_epochs: 25
 early_stopping: 2
 device: cuda:0
