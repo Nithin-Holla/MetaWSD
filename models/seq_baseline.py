@@ -67,6 +67,19 @@ class SeqBaselineModel(nn.Module):
         self.device = torch.device(config.get('device', 'cpu'))
         self.to(self.device)
 
+        self.learner_optimizer = None
+        self.lr_scheduler = None
+        self.initialize_optimizer_scheduler()
+
+    def initialize_optimizer_scheduler(self):
+        learner_params = [p for n, p in self.named_parameters() if p.requires_grad]
+        if isinstance(self.learner, BERTSequenceModel):
+            self.learner_optimizer = AdamW(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+            self.lr_scheduler = get_constant_schedule_with_warmup(self.learner_optimizer, num_warmup_steps=100)
+        else:
+            self.learner_optimizer = optim.Adam(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+            self.lr_scheduler = optim.lr_scheduler.StepLR(self.learner_optimizer, step_size=500, gamma=0.5)
+
     def vectorize(self, batch_x, batch_len, batch_y):
         with torch.no_grad():
             if self.vectors == 'elmo':
@@ -96,18 +109,10 @@ class SeqBaselineModel(nn.Module):
 
         if not testing:
             updates = 1
-            # Learner optimizer
-            learner_params = [p for n, p in self.named_parameters() if p.requires_grad]
-            if isinstance(self.learner, BERTSequenceModel):
-                learner_optimizer = AdamW(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
-                lr_scheduler = get_constant_schedule_with_warmup(learner_optimizer, num_warmup_steps=100)
-            else:
-                learner_optimizer = optim.Adam(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
-                lr_scheduler = optim.lr_scheduler.StepLR(learner_optimizer, step_size=500, gamma=0.5)
         else:
             # Learner optimizer
             learner_params = [p for n, p in self.named_parameters() if p.requires_grad and 'output_layer' not in n]
-            learner_optimizer = optim.SGD(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
+            finetune_learner_optimizer = optim.SGD(learner_params, lr=self.learner_lr, weight_decay=self.weight_decay)
 
             # Output optimizer
             output_params = [p for n, p in self.named_parameters() if p.requires_grad and 'output_layer' in n]
@@ -135,13 +140,16 @@ class SeqBaselineModel(nn.Module):
                 loss = self.learner_loss[episode.base_task](output, batch_y)
                 if testing:
                     output_optimizer.zero_grad()
-                learner_optimizer.zero_grad()
+                    finetune_learner_optimizer.zero_grad()
+                else:
+                    self.learner_optimizer.zero_grad()
                 loss.backward()
                 if testing:
                     output_optimizer.step()
-                learner_optimizer.step()
-                if not testing:
-                    lr_scheduler.step()
+                    finetune_learner_optimizer.step()
+                else:
+                    self.learner_optimizer.step()
+                    self.lr_scheduler.step()
 
             relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
             pred = make_prediction(output[relevant_indices].detach()).cpu()
@@ -177,10 +185,10 @@ class SeqBaselineModel(nn.Module):
                 loss = self.learner_loss[episode.base_task](output, batch_y)
 
                 if not testing:
-                    learner_optimizer.zero_grad()
+                    self.learner_optimizer.zero_grad()
                     loss.backward()
-                    learner_optimizer.step()
-                    lr_scheduler.step()
+                    self.learner_optimizer.step()
+                    self.lr_scheduler.step()
 
                 query_loss += loss.item()
 
