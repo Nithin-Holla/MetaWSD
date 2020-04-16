@@ -1,19 +1,14 @@
-meta_learner: maml
-fomaml: True
-proto_maml: True
+meta_learner: proto_net
 meta_model: seq
-learner_model: mlp
+learner_model: seq
 learner_params:
   hidden_size: 256
   num_outputs:
     wsd: var
-  embed_dim: 1024
+  embed_dim: 300
   dropout_ratio: 0
-vectors: elmo
-output_lr: 0.001
-learner_lr: 0.001
+vectors: glove
 meta_lr: 0.001
-meta_batch_size: 16
 num_shots:
   wsd: 16
 num_updates: 5

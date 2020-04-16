@@ -110,7 +110,7 @@ if __name__ == '__main__':
             model_name = 'MAML'
     else:
         model_name = config['meta_learner']
-    model_name += '_' + config['vectors']
+    model_name += '_' + config['vectors'] + '_' + str(config['num_shots']['wsd'])
 
     run_dict = {'model_name': model_name, 'output_lr': config['output_lr'], 'learner_lr': config['learner_lr'],
                 'meta_lr': config['meta_lr'], 'hidden_size': config['learner_params']['hidden_size'],

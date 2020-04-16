@@ -1,19 +1,14 @@
-meta_learner: maml
-fomaml: True
-proto_maml: False
+meta_learner: proto_net
 meta_model: seq
-learner_model: bert
+learner_model: mlp
 learner_params:
-  hidden_size: 192
+  hidden_size: 256
   num_outputs:
     wsd: var
-  embed_dim: 768
+  embed_dim: 1024
   dropout_ratio: 0
-vectors: bert
-output_lr: 0.1
-learner_lr: 0.01
+vectors: elmo
 meta_lr: 0.001
-meta_batch_size: 16
 num_shots:
   wsd: 8
 num_updates: 5
@@ -26,5 +21,5 @@ num_val_episodes:
 num_test_episodes:
   wsd: 264
 num_meta_epochs: 25
-early_stopping: 1
+early_stopping: 2
 device: cuda:0
