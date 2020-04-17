@@ -79,7 +79,7 @@ class SeqPrototypicalNetwork(nn.Module):
             self.lr_scheduler = get_constant_schedule_with_warmup(self.optimizer, num_warmup_steps=100)
         else:
             self.optimizer = optim.Adam(learner_params, lr=self.lr, weight_decay=self.weight_decay)
-            self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=2000, gamma=0.5)
+            self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=5000, gamma=0.5)
 
     def vectorize(self, batch_x, batch_len, batch_y):
         with torch.no_grad():
