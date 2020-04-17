@@ -37,7 +37,7 @@ class SeqPrototypicalNetwork(nn.Module):
         elif 'bert' in config['learner_model']:
             self.learner = BERTSequenceModel(config['learner_params'])
 
-        self.num_outputs = config['learner_params']['num_outputs']
+        self.num_outputs = config['learner_params']['num_outputs']['wsd']
         self.vectors = config.get('vectors', 'glove')
 
         if self.vectors == 'elmo':
@@ -114,6 +114,7 @@ class SeqPrototypicalNetwork(nn.Module):
 
             batch_x, batch_len, batch_y = next(iter(episode.support_loader))
             batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
+            episode_unique_labels = torch.unique(batch_y.view(-1)[batch_y.view(-1) != -1])
 
             self.train()
             support_repr, support_label = [], []
@@ -122,7 +123,7 @@ class SeqPrototypicalNetwork(nn.Module):
             support_repr.append(batch_x_repr)
             support_label.append(batch_y)
 
-            prototypes = self._build_prototypes(support_repr, support_label, episode.n_classes)
+            prototypes = self._build_prototypes(support_repr, support_label, episode_unique_labels)
 
             # Run on query
             query_loss = 0.0
@@ -172,14 +173,14 @@ class SeqPrototypicalNetwork(nn.Module):
 
         return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
-    def _build_prototypes(self, data_repr, data_label, num_outputs):
+    def _build_prototypes(self, data_repr, data_label, unique_class_labels):
         n_dim = data_repr[0].shape[2]
         data_repr = torch.cat(tuple([x.view(-1, n_dim) for x in data_repr]), dim=0)
         data_label = torch.cat(tuple([y.view(-1) for y in data_label]), dim=0)
 
-        prototypes = torch.zeros((num_outputs, n_dim), device=self.device)
+        prototypes = torch.zeros((self.num_outputs, n_dim), device=self.device)
 
-        for c in range(num_outputs):
+        for c in unique_class_labels:
             idx = torch.nonzero(data_label == c).view(-1)
             if idx.nelement() != 0:
                 prototypes[c] = torch.mean(data_repr[idx], dim=0)
@@ -188,7 +189,7 @@ class SeqPrototypicalNetwork(nn.Module):
 
     def _normalized_distances(self, prototypes, q):
         d = torch.stack(
-            tuple([q.sub(p).pow(2).sum(dim=-1) for p in prototypes]),
+            tuple([q.sub(p).pow(2).sum(dim=-1) if p.sum().item() != 0 else torch.full_like(q[:, :, 0], float('inf')) for p in prototypes]),
             dim=-1
         )
         return d.neg()

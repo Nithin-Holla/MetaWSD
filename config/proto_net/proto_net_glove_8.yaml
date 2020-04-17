@@ -4,7 +4,7 @@ learner_model: seq
 learner_params:
   hidden_size: 256
   num_outputs:
-    wsd: var
+    wsd: 5612
   embed_dim: 300
   dropout_ratio: 0
 vectors: glove
