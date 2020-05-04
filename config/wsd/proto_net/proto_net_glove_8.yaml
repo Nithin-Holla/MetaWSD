@@ -1,0 +1,25 @@
+meta_learner: proto_net
+meta_model: seq
+learner_model: seq
+learner_params:
+  hidden_size: 256
+  num_outputs:
+    wsd: var
+  embed_dim: 300
+  dropout_ratio: 0
+vectors: glove
+meta_lr: 0.001
+num_shots:
+  wsd: 8
+num_updates: 5
+num_test_samples:
+  wsd: 8
+num_train_episodes:
+  wsd: 10000
+num_val_episodes:
+  wsd: 167
+num_test_episodes:
+  wsd: 264
+num_meta_epochs: 25
+early_stopping: 2
+device: cuda:0

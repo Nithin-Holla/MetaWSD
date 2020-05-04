@@ -62,15 +62,15 @@ class Baseline:
                                                                             avg_precision, avg_recall, avg_f1))
             tensorboard_writer.add_scalar('Loss/val', avg_loss, global_step=epoch + 1)
 
-            if avg_loss < best_loss - self.stopping_threshold:
+            if avg_f1 > best_f1 + self.stopping_threshold:
                 patience = 0
                 best_loss = avg_loss
                 best_f1 = avg_f1
                 torch.save(self.baseline_model.learner.state_dict(), model_path)
-                logger.info('Saving the model since the loss improved')
+                logger.info('Saving the model since the F1 improved')
             else:
                 patience += 1
-                logger.info('Loss did not improve')
+                logger.info('F1 did not improve')
                 if patience == self.early_stopping:
                     break
 

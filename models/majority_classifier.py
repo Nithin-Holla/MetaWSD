@@ -19,10 +19,10 @@ class MajorityClassifier:
         logger.info('Majority classifier instantiated')
 
     def training(self, train_episodes, val_episodes):
-        return
+        return 0
 
     def testing(self, test_episodes):
-        episode_accuracies, episode_precisions, episode_recalls, episodes_f1s = [], [], [], []
+        episode_accuracies, episode_precisions, episode_recalls, episode_f1s = [], [], [], []
 
         for episode_id, episode in enumerate(test_episodes):
             for n_batch, (_, _, batch_y) in enumerate(episode.support_loader):
@@ -50,10 +50,12 @@ class MajorityClassifier:
             episode_accuracies.append(accuracy)
             episode_precisions.append(precision)
             episode_recalls.append(recall)
-            episodes_f1s.append(f1_score)
+            episode_f1s.append(f1_score)
 
         logger.info('Avg meta-testing metrics: Accuracy = {:.5f}, precision = {:.5f}, recall = {:.5f}, '
                     'F1 score = {:.5f}'.format(np.mean(episode_accuracies),
                                                np.mean(episode_precisions),
                                                np.mean(episode_recalls),
-                                               np.mean(episodes_f1s)))
+                                               np.mean(episode_f1s)))
+
+        return np.mean(episode_f1s)
