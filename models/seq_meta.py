@@ -141,7 +141,7 @@ class SeqMetaModel(nn.Module):
                         self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
                         self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
                     else:
-                        self.output_layer_weight = self.output_layer_weight - self.outself.output_lr * output_weight_grad.detach()
+                        self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad.detach()
                         self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad.detach()
 
                     # Update the shared parameters
