@@ -137,8 +137,12 @@ class SeqMetaModel(nn.Module):
 
                     # Update the output layer parameters
                     output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
-                    self.output_layer_weight.data -= self.output_lr * output_weight_grad
-                    self.output_layer_bias.data -= self.output_lr * output_bias_grad
+                    if not self.fomaml:
+                        self.output_layer_weight = self.output_layer_weight - self.outself.output_lr * output_weight_grad
+                        self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
+                    else:
+                        self.output_layer_weight = self.output_layer_weight - self.outself.output_lr * output_weight_grad.detach()
+                        self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad.detach()
 
                     # Update the shared parameters
                     diffopt.step(loss)
@@ -180,6 +184,8 @@ class SeqMetaModel(nn.Module):
                     if not testing:
                         if self.fomaml:
                             meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters() if p.requires_grad])
+                            if self.proto_maml:
+                                meta_grads = meta_grads + torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad])
                         else:
                             meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad])
 
@@ -241,13 +247,13 @@ class SeqMetaModel(nn.Module):
         self.output_layer_bias.requires_grad = True
 
     def _initialize_with_proto_weights(self, support_repr, support_label, n_classes):
-        with torch.set_grad_enabled(not self.fomaml):
-            prototypes = self._build_prototypes(support_repr, support_label, n_classes)
+        # with torch.set_grad_enabled(not self.fomaml):
+        prototypes = self._build_prototypes(support_repr, support_label, n_classes)
         self.output_layer_weight = 2 * prototypes
         self.output_layer_bias = -torch.norm(prototypes, dim=1)**2
-        if self.fomaml:
-            self.output_layer_weight.requires_grad = True
-            self.output_layer_bias.requires_grad = True
+        # if self.fomaml:
+        #     self.output_layer_weight.requires_grad = True
+        #     self.output_layer_bias.requires_grad = True
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr.shape[2]
