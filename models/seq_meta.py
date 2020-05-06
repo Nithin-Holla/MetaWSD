@@ -138,7 +138,7 @@ class SeqMetaModel(nn.Module):
                     # Update the output layer parameters
                     output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
                     if not self.fomaml:
-                        self.output_layer_weight = self.output_layer_weight - self.outself.output_lr * output_weight_grad
+                        self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
                         self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
                     else:
                         self.output_layer_weight = self.output_layer_weight - self.outself.output_lr * output_weight_grad.detach()
