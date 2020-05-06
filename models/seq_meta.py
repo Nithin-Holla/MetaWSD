@@ -183,7 +183,7 @@ class SeqMetaModel(nn.Module):
 
                     if not testing:
                         if self.fomaml:
-                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters() if p.requires_grad])
+                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters() if p.requires_grad], retain_graph=self.proto_maml)
                             if self.proto_maml:
                                 meta_grads = meta_grads + torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad])
                         else:
