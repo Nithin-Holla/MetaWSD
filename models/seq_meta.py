@@ -120,7 +120,7 @@ class SeqMetaModel(nn.Module):
             if self.proto_maml:
                 learner_copy = copy.deepcopy(self.learner)
                 output_repr = learner_copy(batch_x, batch_len)
-                weight, bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
+                init_weights, init_bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
 
             with torch.backends.cudnn.flags(enabled=self.fomaml or testing or not isinstance(self.learner, RNNSequenceModel)), \
                  higher.innerloop_ctx(self.learner, self.learner_optimizer,
@@ -141,11 +141,11 @@ class SeqMetaModel(nn.Module):
 
                     # Update the output layer parameters
                     output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
-                    if self.fomaml:
+                    if self.fomaml and self.proto_maml:
                         new_weight = self.output_layer_weight - self.output_lr * output_weight_grad
                         new_bias = self.output_layer_bias - self.output_lr * output_bias_grad
-                        self.output_layer_weight = weight + (new_weight - weight).detach()
-                        self.output_layer_bias = bias + (new_bias - bias).detach()
+                        self.output_layer_weight = init_weights + (new_weight - init_weights).detach()
+                        self.output_layer_bias = init_bias + (new_bias - init_bias).detach()
                     else:
                         self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
                         self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
