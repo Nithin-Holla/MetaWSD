@@ -1,3 +1,4 @@
+import copy
 import math
 
 import higher
@@ -116,6 +117,11 @@ class SeqMetaModel(nn.Module):
             batch_x, batch_len, batch_y = next(iter(episode.support_loader))
             batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
 
+            if self.proto_maml:
+                learner_copy = copy.deepcopy(self.learner)
+                output_repr = learner_copy(batch_x, batch_len)
+                weight, bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
+
             with torch.backends.cudnn.flags(enabled=self.fomaml or testing or not isinstance(self.learner, RNNSequenceModel)), \
                  higher.innerloop_ctx(self.learner, self.learner_optimizer,
                                       copy_initial_weights=False,
@@ -128,8 +134,6 @@ class SeqMetaModel(nn.Module):
 
                 for i in range(updates):
                     output = flearner(batch_x, batch_len)
-                    if i == 0 and self.proto_maml:
-                        self._initialize_with_proto_weights(output, batch_y, episode.n_classes)
                     output = self.output_layer(output)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
@@ -137,12 +141,14 @@ class SeqMetaModel(nn.Module):
 
                     # Update the output layer parameters
                     output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
-                    if not self.fomaml:
+                    if self.fomaml:
+                        new_weight = self.output_layer_weight - self.output_lr * output_weight_grad
+                        new_bias = self.output_layer_bias - self.output_lr * output_bias_grad
+                        self.output_layer_weight = weight + (new_weight - weight).detach()
+                        self.output_layer_bias = bias + (new_bias - bias).detach()
+                    else:
                         self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
                         self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
-                    else:
-                        self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad.detach()
-                        self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad.detach()
 
                     # Update the shared parameters
                     diffopt.step(loss)
@@ -184,10 +190,10 @@ class SeqMetaModel(nn.Module):
                     if not testing:
                         if self.fomaml:
                             meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters() if p.requires_grad], retain_graph=self.proto_maml)
-                            if self.proto_maml:
-                                meta_grads = meta_grads + torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad])
                         else:
-                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad])
+                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad], retain_graph=self.proto_maml)
+                        if self.proto_maml:
+                            meta_grads = meta_grads + torch.autograd.grad(loss, [p for p in learner_copy.parameters() if p.requires_grad])
 
                     query_loss += loss.item()
 
@@ -249,8 +255,13 @@ class SeqMetaModel(nn.Module):
     def _initialize_with_proto_weights(self, support_repr, support_label, n_classes):
         # with torch.set_grad_enabled(not self.fomaml):
         prototypes = self._build_prototypes(support_repr, support_label, n_classes)
-        self.output_layer_weight = 2 * prototypes
-        self.output_layer_bias = -torch.norm(prototypes, dim=1)**2
+        # weight_copy = 2 * prototypes
+        # bias_copy = -torch.norm(prototypes, dim=1) ** 2
+        weight = 2 * prototypes
+        bias = -torch.norm(prototypes, dim=1)**2
+        self.output_layer_weight = weight * 1
+        self.output_layer_bias = bias * 1
+        return weight, bias
         # if self.fomaml:
         #     self.output_layer_weight.requires_grad = True
         #     self.output_layer_bias.requires_grad = True
