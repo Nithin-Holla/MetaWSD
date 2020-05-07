@@ -134,24 +134,18 @@ class SeqMetaModel(nn.Module):
 
                 for i in range(updates):
                     output = flearner(batch_x, batch_len)
-                    output = self.output_layer(output)
+                    output = self.output_layer(output, init_weights, init_bias)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
                     loss = self.learner_loss[episode.base_task](output, batch_y)
 
                     # Update the output layer parameters
                     output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
-                    if self.fomaml and self.proto_maml:
-                        new_weight = self.output_layer_weight - self.output_lr * output_weight_grad
-                        new_bias = self.output_layer_bias - self.output_lr * output_bias_grad
-                        self.output_layer_weight = init_weights + (new_weight - init_weights).detach()
-                        self.output_layer_bias = init_bias + (new_bias - init_bias).detach()
-                    else:
-                        self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
-                        self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
+                    self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
+                    self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
 
                     # Update the shared parameters
-                    diffopt.step(loss)
+                    diffopt.step(loss, retain_graph=True)
 
                 relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
                 pred = make_prediction(output[relevant_indices].detach()).cpu()
@@ -182,7 +176,7 @@ class SeqMetaModel(nn.Module):
                 for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
                     batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                     output = flearner(batch_x, batch_len)
-                    output = self.output_layer(output)
+                    output = self.output_layer(output, init_weights, init_bias)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
                     loss = self.learner_loss[episode.base_task](output, batch_y)
@@ -193,8 +187,8 @@ class SeqMetaModel(nn.Module):
                         else:
                             meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad], retain_graph=self.proto_maml)
                         if self.proto_maml:
-                            new_grads = torch.autograd.grad(loss, [p for p in learner_copy.parameters() if p.requires_grad])
-                            meta_grads = [m + n for (m, n) in zip(meta_grads, new_grads)]
+                            proto_grads = torch.autograd.grad(loss, [p for p in learner_copy.parameters() if p.requires_grad])
+                            meta_grads = [mg + pg for (mg, pg) in zip(meta_grads, proto_grads)]
                     query_loss += loss.item()
 
                     relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
@@ -259,8 +253,8 @@ class SeqMetaModel(nn.Module):
         # bias_copy = -torch.norm(prototypes, dim=1) ** 2
         weight = 2 * prototypes
         bias = -torch.norm(prototypes, dim=1)**2
-        self.output_layer_weight = weight * 1
-        self.output_layer_bias = bias * 1
+        self.output_layer_weight = torch.zeros_like(weight)
+        self.output_layer_bias = torch.zeros_like(bias)
         return weight, bias
         # if self.fomaml:
         #     self.output_layer_weight.requires_grad = True
@@ -280,5 +274,5 @@ class SeqMetaModel(nn.Module):
 
         return prototypes
 
-    def output_layer(self, input):
-        return F.linear(input, self.output_layer_weight, self.output_layer_bias)
+    def output_layer(self, input, weight, bias):
+        return F.linear(input, self.output_layer_weight + weight, self.output_layer_bias + bias)
