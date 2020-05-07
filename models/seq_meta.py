@@ -193,8 +193,8 @@ class SeqMetaModel(nn.Module):
                         else:
                             meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad], retain_graph=self.proto_maml)
                         if self.proto_maml:
-                            meta_grads = meta_grads + torch.autograd.grad(loss, [p for p in learner_copy.parameters() if p.requires_grad])
-
+                            new_grads = torch.autograd.grad(loss, [p for p in learner_copy.parameters() if p.requires_grad])
+                            meta_grads = [m + n for (m, n) in zip(meta_grads, new_grads)]
                     query_loss += loss.item()
 
                     relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
