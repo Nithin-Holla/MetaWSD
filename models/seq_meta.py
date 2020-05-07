@@ -118,8 +118,7 @@ class SeqMetaModel(nn.Module):
             batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
 
             if self.proto_maml:
-                learner_copy = copy.deepcopy(self.learner)
-                output_repr = learner_copy(batch_x, batch_len)
+                output_repr = self.learner(batch_x, batch_len)
                 init_weights, init_bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
 
             with torch.backends.cudnn.flags(enabled=self.fomaml or testing or not isinstance(self.learner, RNNSequenceModel)), \
@@ -187,7 +186,7 @@ class SeqMetaModel(nn.Module):
                         else:
                             meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad], retain_graph=self.proto_maml)
                         if self.proto_maml:
-                            proto_grads = torch.autograd.grad(loss, [p for p in learner_copy.parameters() if p.requires_grad])
+                            proto_grads = torch.autograd.grad(loss, [p for p in self.learner.parameters() if p.requires_grad])
                             meta_grads = [mg + pg for (mg, pg) in zip(meta_grads, proto_grads)]
                     query_loss += loss.item()
 
@@ -247,10 +246,7 @@ class SeqMetaModel(nn.Module):
         self.output_layer_bias.requires_grad = True
 
     def _initialize_with_proto_weights(self, support_repr, support_label, n_classes):
-        # with torch.set_grad_enabled(not self.fomaml):
         prototypes = self._build_prototypes(support_repr, support_label, n_classes)
-        # weight_copy = 2 * prototypes
-        # bias_copy = -torch.norm(prototypes, dim=1) ** 2
         weight = 2 * prototypes
         bias = -torch.norm(prototypes, dim=1)**2
         self.output_layer_weight = torch.zeros_like(weight, requires_grad=True)
