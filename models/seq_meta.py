@@ -122,6 +122,8 @@ class SeqMetaModel(nn.Module):
             if self.proto_maml:
                 output_repr = self.learner(batch_x, batch_len)
                 init_weights, init_bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
+            else:
+                init_weights, init_bias = 0, 0
 
             with torch.backends.cudnn.flags(enabled=self.fomaml or testing or not isinstance(self.learner, RNNSequenceModel)), \
                  higher.innerloop_ctx(self.learner, self.learner_optimizer,
