@@ -115,8 +115,6 @@ class SeqMetaModel(nn.Module):
             self.initialize_output_layer(episode.n_classes)
 
             batch_x, batch_len, batch_y = next(iter(episode.support_loader))
-            if isinstance(self.learner, BERTSequenceModel) and max(batch_len) > 200:
-                continue
             batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
 
             if self.proto_maml:
