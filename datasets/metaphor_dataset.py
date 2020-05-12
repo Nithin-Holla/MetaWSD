@@ -56,21 +56,22 @@ class MetaphorClassificationDataset(data.Dataset):
                 sent = row['sentence'].split(' ')
                 verb_idx = int(row['verb_idx'])
                 verb = row['verb']
-                lbl = int(row['label'])
+                lbl = [-1] * len(sent)
+                lbl[verb_idx] = int(row['label'])
                 sentences.append(sent)
                 verb_indices.append(verb_idx)
                 verbs.append(verb)
                 labels.append(lbl)
         return sentences, verb_indices, verbs, labels
 
-    def _split_by_word(self):
-        word_splits = defaultdict(lambda: defaultdict(list))
-        for sent, verb_idx, verb, lbl in zip(self.sentences, self.verb_indices, self.verbs, self.labels):
-            word_splits[verb]['sentences'].append(sent)
-            label_vector = [-1] * len(sent)
-            label_vector[verb_idx] = lbl
-            word_splits[verb]['labels'].append(label_vector)
-        return word_splits
+    # def _split_by_word(self):
+    #     word_splits = defaultdict(lambda: defaultdict(list))
+    #     for sent, verb_idx, verb, lbl in zip(self.sentences, self.verb_indices, self.verbs, self.labels):
+    #         word_splits[verb]['sentences'].append(sent)
+    #         label_vector = [-1] * len(sent)
+    #         label_vector[verb_idx] = lbl
+    #         word_splits[verb]['labels'].append(label_vector)
+    #     return word_splits
 
     def __len__(self):
         return len(self.labels)
