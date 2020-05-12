@@ -68,10 +68,10 @@ if __name__ == '__main__':
 
     # Generate episodes for metaphor
     logger.info('Generating episodes for metaphor')
-    metaphor_episodes = utils.generate_metaphor_cls_episodes(train_dataset=metaphor_train_dataset,
-                                                             test_dataset=metaphor_test_dataset,
-                                                             n_support_examples=config['num_shots']['metaphor'],
-                                                             task='metaphor')
+    metaphor_episodes = utils.generate_metaphor_episode(train_dataset=metaphor_train_dataset,
+                                                        test_dataset=metaphor_test_dataset,
+                                                        n_support_examples=config['num_shots']['metaphor'],
+                                                        task='metaphor')
     test_episodes.extend(metaphor_episodes)
     logger.info('Finished generating {} episodes for metaphor'.format(len(metaphor_episodes)))
 

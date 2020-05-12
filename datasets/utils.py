@@ -143,6 +143,18 @@ def generate_metaphor_cls_episodes(train_dataset, test_dataset, n_support_exampl
     return episodes
 
 
+def generate_metaphor_episode(train_dataset, test_dataset, n_support_examples, task, batch_size=32):
+    train_subset = data.Subset(train_dataset, range(0, n_support_examples))
+    support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
+    query_loader = data.DataLoader(test_dataset, batch_size=batch_size, collate_fn=prepare_batch)
+    episode = Episode(support_loader=support_loader,
+                      query_loader=query_loader,
+                      base_task=task,
+                      task_id=task,
+                      n_classes=train_dataset.n_classes)
+    return [episode]
+
+
 def generate_semcor_wsd_episodes(wsd_dataset, n_episodes, n_support_examples, n_query_examples, task):
     word_splits = {k: v for (k, v) in wsd_dataset.word_splits.items() if len(v['sentences']) >
                    (n_support_examples + n_query_examples)}
