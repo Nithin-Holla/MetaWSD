@@ -57,10 +57,7 @@ class SeqMetaModel(nn.Module):
 
         self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
-            if task == 'metaphor':
-                self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
-            else:
-                self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
+            self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
 
         self.output_layer_weight = None
         self.output_layer_bias = None
