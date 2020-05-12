@@ -104,11 +104,28 @@ def generate_metaphor_cls_episodes(train_dataset, test_dataset, n_support_exampl
     for verb in test_dataset.word_splits:
         if verb not in train_dataset.word_splits:
             continue
-        support_sentences = train_dataset.word_splits[verb]['sentences'][0:n_support_examples]
-        support_labels = train_dataset.word_splits[verb]['labels'][0:n_support_examples]
-        unique_labels = set([l for l in itertools.chain(*support_labels) if l != -1])
-        if len(support_sentences) != n_support_examples or len(unique_labels) != train_dataset.n_classes:
+
+        non_metaphor_idx, metaphor_idx = [], []
+        for idx, lbl in enumerate(train_dataset.word_splits[verb]['labels']):
+            if 0 in lbl:
+                non_metaphor_idx.append(idx)
+            elif 1 in lbl:
+                metaphor_idx.append(idx)
+
+        if len(non_metaphor_idx) == 0 or len(metaphor_idx) == 0 or len(non_metaphor_idx) + len(metaphor_idx) < n_support_examples:
             continue
+
+        sampled_idx = []
+        random.shuffle(non_metaphor_idx)
+        random.shuffle(metaphor_idx)
+        while len(sampled_idx) != n_support_examples:
+            if len(metaphor_idx) != 0:
+                sampled_idx.append(metaphor_idx.pop())
+            if len(non_metaphor_idx) != 0:
+                sampled_idx.append(non_metaphor_idx.pop())
+
+        support_sentences = [train_dataset.word_splits[verb]['sentences'][i] for i in sampled_idx]
+        support_labels = [train_dataset.word_splits[verb]['labels'][i] for i in sampled_idx]
         train_subset = WordMetaphorDataset(sentences=support_sentences,
                                            labels=support_labels,
                                            n_classes=train_dataset.n_classes)
