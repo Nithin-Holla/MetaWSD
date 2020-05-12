@@ -1,4 +1,5 @@
 import glob
+import itertools
 import json
 import os
 import random
@@ -7,6 +8,7 @@ from torch.utils import data
 from torch.utils.data import Subset
 
 from datasets.episode import Episode
+from datasets.metaphor_dataset import WordMetaphorDataset
 from datasets.wsd_dataset import WordWSDDataset, MetaWSDDataset
 
 
@@ -95,6 +97,33 @@ def generate_full_query_episode(train_dataset, test_dataset, n_support_examples,
     query_loader = data.DataLoader(test_dataset, batch_size=batch_size, collate_fn=prepare_batch)
     episode = Episode(support_loader, query_loader, task, task, train_dataset.n_classes)
     return [episode]
+
+
+def generate_metaphor_cls_episodes(train_dataset, test_dataset, n_support_examples, task, batch_size=32):
+    episodes = []
+    for verb in test_dataset.word_splits:
+        if verb not in train_dataset.word_splits:
+            continue
+        support_sentences = train_dataset.word_splits[verb]['sentences'][0:n_support_examples]
+        support_labels = train_dataset.word_splits[verb]['labels'][0:n_support_examples]
+        unique_labels = set([l for l in itertools.chain(*support_labels) if l != -1])
+        if len(support_sentences) != n_support_examples or len(unique_labels) != train_dataset.n_classes:
+            continue
+        train_subset = WordMetaphorDataset(sentences=support_sentences,
+                                           labels=support_labels,
+                                           n_classes=train_dataset.n_classes)
+        support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
+        test_subset = WordMetaphorDataset(sentences=test_dataset.word_splits[verb]['sentences'],
+                                          labels=test_dataset.word_splits[verb]['labels'],
+                                          n_classes=test_dataset.n_classes)
+        query_loader = data.DataLoader(test_subset, batch_size=batch_size, collate_fn=prepare_batch)
+        episode = Episode(support_loader=support_loader,
+                          query_loader=query_loader,
+                          base_task=task,
+                          task_id=task + '-' + verb,
+                          n_classes=train_dataset.n_classes)
+        episodes.append(episode)
+    return episodes
 
 
 def generate_semcor_wsd_episodes(wsd_dataset, n_episodes, n_support_examples, n_query_examples, task):
