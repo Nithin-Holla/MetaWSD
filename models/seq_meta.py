@@ -196,7 +196,12 @@ class SeqMetaModel(nn.Module):
 
                 query_loss /= n_batch + 1
 
-            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions, all_labels, binary=False)
+            if episode.base_task != 'metaphor':
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=False)
+            else:
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=True)
 
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                         'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
