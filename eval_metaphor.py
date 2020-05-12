@@ -73,7 +73,7 @@ if __name__ == '__main__':
                                                              n_support_examples=config['num_shots']['metaphor'],
                                                              task='metaphor')
     test_episodes.extend(metaphor_episodes)
-    logger.info('Finished generating episodes for metaphor')
+    logger.info('Finished generating {} episodes for metaphor'.format(len(metaphor_episodes)))
 
     # Initialize meta learner
     if config['meta_learner'] == 'maml':
