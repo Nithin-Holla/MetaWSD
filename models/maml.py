@@ -192,9 +192,9 @@ class MAML:
         episode_accuracies, episode_precisions, episode_recalls, episode_f1s = [], [], [], []
         predictions, labels = [], []
         for episode in test_episodes:
-            loss, accuracy, precision, recall, f1_score = self.meta_model([episode], updates=self.updates, testing=True)
+            loss, accuracy, precision, recall, f1_score, pred, lbl = self.meta_model([episode], updates=self.updates, testing=True)
             loss = loss[0]
-            accuracy, precision, recall, f1_score, pred, lbl = accuracy[0], precision[0], recall[0], f1_score[0]
+            accuracy, precision, recall, f1_score = accuracy[0], precision[0], recall[0], f1_score[0]
             episode_accuracies.append(accuracy)
             episode_precisions.append(precision)
             episode_recalls.append(recall)
