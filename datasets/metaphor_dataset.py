@@ -43,7 +43,7 @@ class MetaphorClassificationDataset(data.Dataset):
         self.data_path = data_path
         self.sentences, self.verb_indices, self.verbs, self.labels = self._load_data()
         self.n_classes = n_classes
-        self.word_splits = self._split_by_word()
+        # self.word_splits = self._split_by_word()
 
     def _load_data(self):
         sentences = []

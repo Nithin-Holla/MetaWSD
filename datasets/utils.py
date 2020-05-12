@@ -144,7 +144,17 @@ def generate_metaphor_cls_episodes(train_dataset, test_dataset, n_support_exampl
 
 
 def generate_metaphor_episode(train_dataset, test_dataset, n_support_examples, task, batch_size=32):
-    train_subset = data.Subset(train_dataset, range(0, n_support_examples))
+    metaphor_idx, non_metaphor_idx = [], []
+    for idx, lbl in enumerate(train_dataset.labels):
+        if 0 in lbl and len(non_metaphor_idx) < n_support_examples // 2:
+            non_metaphor_idx.append(idx)
+        elif 1 in lbl and len(metaphor_idx) < n_support_examples // 2:
+            metaphor_idx.append(idx)
+        if len(non_metaphor_idx) == n_support_examples // 2 and len(metaphor_idx) == n_support_examples // 2:
+            break
+
+    sampled_idx = metaphor_idx + non_metaphor_idx
+    train_subset = data.Subset(train_dataset, sampled_idx)
     support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
     query_loader = data.DataLoader(test_dataset, batch_size=batch_size, collate_fn=prepare_batch)
     episode = Episode(support_loader=support_loader,
