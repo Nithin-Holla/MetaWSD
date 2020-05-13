@@ -1,0 +1,30 @@
+meta_learner: maml
+fomaml: True
+proto_maml: True
+meta_model: seq
+learner_model: seq
+learner_params:
+  hidden_size: 256
+  num_outputs:
+    wsd: var
+  embed_dim: 300
+  dropout_ratio: 0
+vectors: glove
+output_lr: 0.001
+learner_lr: 0.001
+meta_lr: 0.001
+meta_batch_size: 16
+num_shots:
+  wsd: 4
+num_updates: 5
+num_test_samples:
+  wsd: 4
+num_train_episodes:
+  wsd: 10000
+num_val_episodes:
+  wsd: 166
+num_test_episodes:
+  wsd: 270
+num_meta_epochs: 25
+early_stopping: 2
+device: cuda:0

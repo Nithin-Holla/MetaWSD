@@ -1,3 +1,4 @@
+import copy
 import math
 
 import higher
@@ -116,6 +117,12 @@ class SeqMetaModel(nn.Module):
             batch_x, batch_len, batch_y = next(iter(episode.support_loader))
             batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
 
+            if self.proto_maml:
+                output_repr = self.learner(batch_x, batch_len)
+                init_weights, init_bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
+            else:
+                init_weights, init_bias = 0, 0
+
             with torch.backends.cudnn.flags(enabled=self.fomaml or testing or not isinstance(self.learner, RNNSequenceModel)), \
                  higher.innerloop_ctx(self.learner, self.learner_optimizer,
                                       copy_initial_weights=False,
@@ -128,20 +135,18 @@ class SeqMetaModel(nn.Module):
 
                 for i in range(updates):
                     output = flearner(batch_x, batch_len)
-                    if i == 0 and self.proto_maml:
-                        self._initialize_with_proto_weights(output, batch_y, episode.n_classes)
-                    output = self.output_layer(output)
+                    output = self.output_layer(output, init_weights, init_bias)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
                     loss = self.learner_loss[episode.base_task](output, batch_y)
 
                     # Update the output layer parameters
                     output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
-                    self.output_layer_weight.data -= self.output_lr * output_weight_grad
-                    self.output_layer_bias.data -= self.output_lr * output_bias_grad
+                    self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
+                    self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
 
                     # Update the shared parameters
-                    diffopt.step(loss)
+                    diffopt.step(loss, retain_graph=True)
 
                 relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
                 pred = make_prediction(output[relevant_indices].detach()).cpu()
@@ -172,17 +177,19 @@ class SeqMetaModel(nn.Module):
                 for n_batch, (batch_x, batch_len, batch_y) in enumerate(episode.query_loader):
                     batch_x, batch_len, batch_y = self.vectorize(batch_x, batch_len, batch_y)
                     output = flearner(batch_x, batch_len)
-                    output = self.output_layer(output)
+                    output = self.output_layer(output, init_weights, init_bias)
                     output = output.view(output.size()[0] * output.size()[1], -1)
                     batch_y = batch_y.view(-1)
                     loss = self.learner_loss[episode.base_task](output, batch_y)
 
                     if not testing:
                         if self.fomaml:
-                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters() if p.requires_grad])
+                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters() if p.requires_grad], retain_graph=self.proto_maml)
                         else:
-                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad])
-
+                            meta_grads = torch.autograd.grad(loss, [p for p in flearner.parameters(time=0) if p.requires_grad], retain_graph=self.proto_maml)
+                        if self.proto_maml:
+                            proto_grads = torch.autograd.grad(loss, [p for p in self.learner.parameters() if p.requires_grad])
+                            meta_grads = [mg + pg for (mg, pg) in zip(meta_grads, proto_grads)]
                     query_loss += loss.item()
 
                     relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
@@ -241,13 +248,12 @@ class SeqMetaModel(nn.Module):
         self.output_layer_bias.requires_grad = True
 
     def _initialize_with_proto_weights(self, support_repr, support_label, n_classes):
-        with torch.set_grad_enabled(not self.fomaml):
-            prototypes = self._build_prototypes(support_repr, support_label, n_classes)
-        self.output_layer_weight = 2 * prototypes
-        self.output_layer_bias = -torch.norm(prototypes, dim=1)**2
-        if self.fomaml:
-            self.output_layer_weight.requires_grad = True
-            self.output_layer_bias.requires_grad = True
+        prototypes = self._build_prototypes(support_repr, support_label, n_classes)
+        weight = 2 * prototypes
+        bias = -torch.norm(prototypes, dim=1)**2
+        self.output_layer_weight = torch.zeros_like(weight, requires_grad=True)
+        self.output_layer_bias = torch.zeros_like(bias, requires_grad=True)
+        return weight, bias
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
         n_dim = data_repr.shape[2]
@@ -263,5 +269,5 @@ class SeqMetaModel(nn.Module):
 
         return prototypes
 
-    def output_layer(self, input):
-        return F.linear(input, self.output_layer_weight, self.output_layer_bias)
+    def output_layer(self, input, weight, bias):
+        return F.linear(input, self.output_layer_weight + weight, self.output_layer_bias + bias)

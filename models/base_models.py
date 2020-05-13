@@ -73,6 +73,7 @@ class BERTSequenceModel(nn.Module):
         self.hidden_size = model_params['hidden_size']
         self.output_dim = model_params['num_outputs']['wsd']
         self.dropout_ratio = model_params.get('dropout_ratio', 0)
+        self.n_tunable_layers = model_params.get('fine_tune_layers', None)
         self.bert = BertModel.from_pretrained('bert-base-cased')
         self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
                                     nn.ReLU(),
@@ -82,10 +83,11 @@ class BERTSequenceModel(nn.Module):
         self.bert.pooler.dense.weight.requires_grad = False
         self.bert.pooler.dense.bias.requires_grad = False
 
-        # tunable_layers = {str(l) for l in range(8, 12)}
-        # for name, param in self.bert.named_parameters():
-        #     if not set.intersection(set(name.split('.')), tunable_layers):
-        #         param.requires_grad = False
+        if self.n_tunable_layers is not None:
+            tunable_layers = {str(l) for l in range(12 - self.n_tunable_layers, 12)}
+            for name, param in self.bert.named_parameters():
+                if not set.intersection(set(name.split('.')), tunable_layers):
+                    param.requires_grad = False
 
     def forward(self, input, input_len):
         attention_mask = (input.detach() != 0).float()
