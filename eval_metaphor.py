@@ -40,10 +40,10 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--config', dest='config_file', type=str, help='Configuration file', required=True)
     parser.add_argument('--n_support', type=int, help='Number of support examples', required=True)
-    parser.add_argument('--trained_learner', type=str, help='Name of the trained model', required=True)
-    parser.add_argument('--output_lr', type=float, help='Output learning rate', default=-1)
-    parser.add_argument('--learner_lr', type=float, help='Learner learning rate', default=-1)
-    parser.add_argument('--num_updates', type=int, help='Number of per-task update steps', default=-1)
+    parser.add_argument('--trained_learner', type=str, help='Name of the trained model')
+    parser.add_argument('--output_lr', type=float, help='Output learning rate')
+    parser.add_argument('--learner_lr', type=float, help='Learner learning rate')
+    parser.add_argument('--num_updates', type=int, help='Number of per-task update steps')
     parser.add_argument('--val', action='store_true', help='Evaluates on validation episode if true, else on test episode')
     args = parser.parse_args()
 
@@ -51,12 +51,13 @@ if __name__ == '__main__':
     config = load_config(args.config_file)
     config['learner_params']['num_outputs']['metaphor'] = 2
     config['num_shots']['metaphor'] = args.n_support
-    config['trained_learner'] = args.trained_learner
-    if args.output_lr != -1:
+    if args.trained_learner is not None:
+        config['trained_learner'] = args.trained_learner
+    if args.output_lr is not None:
         config['output_lr'] = args.output_lr
-    if args.learner_lr != -1:
+    if args.learner_lr is not None:
         config['learner_lr'] = args.learner_lr
-    if args.num_updates != -1:
+    if args.num_updates is not None:
         config['num_updates'] = args.num_updates
     logger.info('Using configuration: {}'.format(config))
 
