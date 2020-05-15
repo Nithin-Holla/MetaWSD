@@ -40,7 +40,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--config', dest='config_file', type=str, help='Configuration file', required=True)
     parser.add_argument('--n_support', type=int, help='Number of support examples', required=True)
-    parser.add_argument('--trained_learner', type=float, help='Name of the trained model', required=True)
+    parser.add_argument('--trained_learner', type=str, help='Name of the trained model', required=True)
     parser.add_argument('--output_lr', type=float, help='Output learning rate', default=-1)
     parser.add_argument('--learner_lr', type=float, help='Learner learning rate', default=-1)
     parser.add_argument('--num_updates', type=float, help='Number of per-task update steps', default=-1)
