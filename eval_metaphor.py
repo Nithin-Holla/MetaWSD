@@ -55,7 +55,7 @@ if __name__ == '__main__':
     if args.output_lr != -1:
         config['output_lr'] = args.output_lr
     if args.learner_lr != -1:
-        config['learner_lr'] = args.learner.lr
+        config['learner_lr'] = args.learner_lr
     if args.num_updates != -1:
         config['num_updates'] = args.num_updates
     logger.info('Using configuration: {}'.format(config))
