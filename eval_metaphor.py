@@ -44,6 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_lr', type=float, help='Output learning rate', default=-1)
     parser.add_argument('--learner_lr', type=float, help='Learner learning rate', default=-1)
     parser.add_argument('--num_updates', type=float, help='Number of per-task update steps', default=-1)
+    parser.add_argument('--val', action='store_true', help='Evaluates on validation episode if true, else on test episode')
     args = parser.parse_args()
 
     # Load configuration
@@ -111,6 +112,10 @@ if __name__ == '__main__':
         raise NotImplementedError
 
     # Meta-testing
-    meta_learner.testing(val_episodes)
-    # meta_learner.testing(test_episodes)
+    if args.val:
+        logger.info('Evaluation on the validation episode')
+        meta_learner.testing(val_episodes)
+    else:
+        logger.info('Evaluation on the test episode')
+        meta_learner.testing(test_episodes)
     logger.info('Meta-testing completed')
