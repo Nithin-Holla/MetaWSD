@@ -190,24 +190,19 @@ class MAML:
     def testing(self, test_episodes):
         logger.info('---------- Meta testing starts here ----------')
         episode_accuracies, episode_precisions, episode_recalls, episode_f1s = [], [], [], []
-        predictions, labels = [], []
         for episode in test_episodes:
-            loss, accuracy, precision, recall, f1_score, pred, lbl = self.meta_model([episode], updates=self.updates, testing=True)
+            loss, accuracy, precision, recall, f1_score = self.meta_model([episode], updates=self.updates, testing=True)
             loss = loss[0]
             accuracy, precision, recall, f1_score = accuracy[0], precision[0], recall[0], f1_score[0]
             episode_accuracies.append(accuracy)
             episode_precisions.append(precision)
             episode_recalls.append(recall)
             episode_f1s.append(f1_score)
-            predictions.extend(pred)
-            labels.extend(lbl)
 
         logger.info('Avg meta-testing metrics: Accuracy = {:.5f}, precision = {:.5f}, recall = {:.5f}, '
                     'F1 score = {:.5f}'.format(np.mean(episode_accuracies),
                                                np.mean(episode_precisions),
                                                np.mean(episode_recalls),
                                                np.mean(episode_f1s)))
-        accuracy, precision, recall, f1_score = utils.calculate_metrics(predictions, labels, binary=True)
-        logger.info('Global metrics: Accuracy = {:.5f}, precision = {:.5f}, recall = {:.5f}, '
-                    'F1 score = {:.5f}'.format(accuracy, precision, recall, f1_score))
+
         return np.mean(episode_f1s)

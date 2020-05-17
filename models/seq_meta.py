@@ -227,7 +227,7 @@ class SeqMetaModel(nn.Module):
                     param.grad /= len(query_accuracies)
 
         if testing:
-            return support_losses, query_accuracies, query_precisions, query_recalls, query_f1s, all_predictions, all_labels
+            return support_losses, query_accuracies, query_precisions, query_recalls, query_f1s
         else:
             return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
