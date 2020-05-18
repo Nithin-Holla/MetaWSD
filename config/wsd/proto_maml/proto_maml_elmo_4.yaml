@@ -1,5 +1,5 @@
 meta_learner: maml
-fomaml: True
+fomaml: False
 proto_maml: True
 meta_model: seq
 learner_model: mlp
@@ -15,16 +15,16 @@ learner_lr: 0.001
 meta_lr: 0.0005
 meta_batch_size: 16
 num_shots:
-  wsd: 8
+  wsd: 4
 num_updates: 7
 num_test_samples:
-  wsd: 8
+  wsd: 4
 num_train_episodes:
   wsd: 10000
 num_val_episodes:
-  wsd: 167
+  wsd: 166
 num_test_episodes:
-  wsd: 264
+  wsd: 270
 num_meta_epochs: 25
 early_stopping: 2
 device: cuda:0

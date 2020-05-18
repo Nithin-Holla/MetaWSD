@@ -10,8 +10,8 @@ learner_params:
   embed_dim: 1024
   dropout_ratio: 0
 vectors: elmo
-output_lr: 0.005
-learner_lr: 0.005
+output_lr: 0.001
+learner_lr: 0.001
 meta_lr: 0.0005
 meta_batch_size: 16
 num_shots:
