@@ -12,7 +12,8 @@ from transformers import AdamW, get_constant_schedule_with_warmup
 import datasets.utils
 import models.utils
 from datasets.episode import EpisodeDataset
-from models.base_models import BERTSequenceModel
+from models.base_models import BERTSequenceModel, ALBERTRelationModel
+from models.rel_meta import RelMetaModel
 from models.seq_meta import SeqMetaModel
 
 logger = logging.getLogger('MAML Log')
@@ -42,6 +43,10 @@ class MAML:
 
         if 'seq' in config['meta_model']:
             self.meta_model = SeqMetaModel(config)
+            self.metric = 'F1'
+        elif 'rel' in config['meta_model']:
+            self.meta_model = RelMetaModel(config)
+            self.metric = 'accuracy'
 
         if self.fomaml:
             logger.info('FOMAML instantiated')
@@ -93,6 +98,9 @@ class MAML:
         if isinstance(self.meta_model.learner, BERTSequenceModel):
             meta_optimizer = AdamW(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
             lr_scheduler = get_constant_schedule_with_warmup(meta_optimizer, num_warmup_steps=100)
+        elif isinstance(self.meta_model.learner, ALBERTRelationModel):
+            meta_optimizer = AdamW(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
+            lr_scheduler = get_constant_schedule_with_warmup(meta_optimizer, num_warmup_steps=100)
         else:
             meta_optimizer = optim.Adam(learner_params, lr=self.meta_lr, weight_decay=self.meta_weight_decay)
             lr_scheduler = optim.lr_scheduler.StepLR(meta_optimizer, step_size=200, gamma=0.5)
@@ -101,7 +109,7 @@ class MAML:
     def training(self, train_episodes, val_episodes):
         meta_optimizer, lr_scheduler = self.initialize_optimizer_scheduler()
         best_loss = float('inf')
-        best_f1 = 0
+        best_metric = 0
         patience = 0
         global_step = 0
         model_path = os.path.join(self.base_path, 'saved_models', 'MetaModel-{}.h5'.format(self.stamp))
@@ -165,26 +173,31 @@ class MAML:
             avg_recall = np.mean(recalls)
             avg_f1 = np.mean(f1s)
 
+            if self.metric == 'F1':
+                avg_metric = avg_f1
+            elif self.metric == 'accuracy':
+                avg_metric = avg_accuracy
+
             logger.info('Meta val epoch {}: Avg loss = {:.5f}, avg accuracy = {:.5f}, avg precision = {:.5f}, '
                         'avg recall = {:.5f}, avg F1 score = {:.5f}'.format(epoch + 1, avg_loss, avg_accuracy,
                                                                             avg_precision, avg_recall, avg_f1))
 
             tensorboard_writer.add_scalar('Loss/val', avg_loss, global_step=epoch+1)
 
-            if avg_f1 > best_f1 + self.stopping_threshold:
+            if avg_metric > best_metric + self.stopping_threshold:
                 patience = 0
                 best_loss = avg_loss
-                best_f1 = avg_f1
+                best_metric = avg_metric
                 torch.save(self.meta_model.learner.state_dict(), model_path)
-                logger.info('Saving the model since the F1 improved')
+                logger.info('Saving the model since the {} improved'.format(self.metric))
             else:
                 patience += 1
-                logger.info('F1 did not improve')
+                logger.info('The {} did not improve'.format(self.metric))
                 if patience == self.early_stopping:
                     break
 
         self.meta_model.learner.load_state_dict(torch.load(model_path))
-        return best_f1
+        return best_metric
 
     def testing(self, test_episodes):
         logger.info('---------- Meta testing starts here ----------')
@@ -204,4 +217,7 @@ class MAML:
                                                np.mean(episode_recalls),
                                                np.mean(episode_f1s)))
 
-        return np.mean(episode_f1s)
+        if self.metric == 'F1':
+            return np.mean(episode_f1s)
+        elif self.metric == 'accuracy':
+            return np.mean(episode_accuracies)

@@ -1,0 +1,29 @@
+meta_learner: proto_net
+fomaml: True
+proto_maml: False
+meta_model: rel
+learner_model: albert
+learner_params:
+  hidden_size: 192
+  num_outputs:
+    rel: 5
+  embed_dim: 768
+  dropout_ratio: 0
+output_lr: 0.01
+learner_lr: 0.001
+meta_lr: 0.000001
+meta_batch_size: 16
+num_shots:
+  rel: 5
+num_updates: 5
+num_test_samples:
+  rel: 5
+num_train_episodes:
+  rel: 1000
+num_val_episodes:
+  rel: 200
+num_test_episodes:
+  rel: 10
+num_meta_epochs: 25
+early_stopping: 2
+device: cuda:0
