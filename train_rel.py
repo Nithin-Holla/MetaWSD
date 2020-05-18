@@ -68,7 +68,7 @@ if __name__ == '__main__':
                                                          N=config['learner_params']['num_outputs']['rel'],
                                                          K=config['num_shots']['rel'],
                                                          Q=config['num_shots']['rel'],
-                                                         n_episodes=config['num_train_episodes']['rel'],
+                                                         n_episodes=config['num_val_episodes']['rel'],
                                                          task='rel')
     train_episodes.extend(fewrel_train_episodes)
     val_episodes.extend(fewrel_val_episodes)
