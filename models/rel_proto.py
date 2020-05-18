@@ -103,7 +103,7 @@ class RelPrototypicalNetwork(nn.Module):
 
             # Calculate metrics
 
-            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions, all_labels, binary=True)
+            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions, all_labels, binary=False)
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                         'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
                                                                     query_loss, accuracy, precision, recall, f1_score))
