@@ -99,7 +99,9 @@ class RelMetaModel(nn.Module):
                     self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
 
                     # Update the shared parameters
-                    diffopt.step(loss, retain_graph=True)
+                    diffopt.step(loss)
+                    loss = loss.detach()
+                    output = output.detach()
 
                 relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
                 pred = make_prediction(output[relevant_indices].detach()).cpu()
