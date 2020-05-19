@@ -34,16 +34,16 @@ class FewRelDataset(data.Dataset):
         for token in raw_tokens:
             token = token.lower()
             if cur_pos == pos_head[0]:
-                tokens.append('[unused0]')
+                tokens.append('[E1start]')
                 pos1_in_index = len(tokens)
             if cur_pos == pos_tail[0]:
-                tokens.append('[unused1]')
+                tokens.append('[E2start]')
                 pos2_in_index = len(tokens)
             tokens += self.tokenizer.tokenize(token)
             if cur_pos == pos_head[-1]:
-                tokens.append('[unused2]')
+                tokens.append('[E1end]')
             if cur_pos == pos_tail[-1]:
-                tokens.append('[unused3]')
+                tokens.append('[E2end]')
             cur_pos += 1
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens)
 
