@@ -120,9 +120,9 @@ if __name__ == '__main__':
 
     # Meta-testing
     if args.val:
-        logger.info('Evaluation on the validation episode')
+        logger.info('Evaluating on the validation episodes')
         meta_learner.testing(val_episodes)
     else:
-        logger.info('Evaluation on the test episode')
+        logger.info('Evaluating on the test episodes')
         meta_learner.testing(test_episodes)
     logger.info('Meta-testing completed')
