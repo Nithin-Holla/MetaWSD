@@ -149,8 +149,8 @@ class MAML:
                 # Log params and grads into tensorboard
                 for name, param in self.meta_model.named_parameters():
                     if param.requires_grad and param.grad is not None:
-                        tensorboard_writer.add_histogram('Params/' + name, param.data.view(-1), global_step=global_step)
-                        tensorboard_writer.add_histogram('Grads/' + name, param.grad.data.view(-1),
+                        tensorboard_writer.add_histogram('Params/' + name, param.data.contiguous().view(-1), global_step=global_step)
+                        tensorboard_writer.add_histogram('Grads/' + name, param.grad.data.contiguous().view(-1),
                                                          global_step=global_step)
 
             avg_loss = np.mean(losses)
