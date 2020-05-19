@@ -11,7 +11,7 @@ class FewRelDataset(data.Dataset):
     FewRel Dataset
     """
 
-    def __init__(self, name, tokenizer, N, K, Q, na_rate, root):
+    def __init__(self, name, tokenizer, N, K, Q, na_rate, root, max_length=128):
         self.root = root
         path = os.path.join(root, name + ".json")
         if not os.path.exists(path):
@@ -24,9 +24,45 @@ class FewRelDataset(data.Dataset):
         self.Q = Q
         self.na_rate = na_rate
         self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def tokenize(self, raw_tokens, pos_head, pos_tail):
+        tokens = ['[CLS]']
+        cur_pos = 0
+        pos1_in_index = 1
+        pos2_in_index = 1
+        for token in raw_tokens:
+            token = token.lower()
+            if cur_pos == pos_head[0]:
+                tokens.append('[unused0]')
+                pos1_in_index = len(tokens)
+            if cur_pos == pos_tail[0]:
+                tokens.append('[unused1]')
+                pos2_in_index = len(tokens)
+            tokens += self.tokenizer.tokenize(token)
+            if cur_pos == pos_head[-1]:
+                tokens.append('[unused2]')
+            if cur_pos == pos_tail[-1]:
+                tokens.append('[unused3]')
+            cur_pos += 1
+        indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens)
+
+        # Padding
+        while len(indexed_tokens) < self.max_length:
+            indexed_tokens.append(0)
+        indexed_tokens = indexed_tokens[:self.max_length]
+
+        # mask
+        mask = np.zeros((self.max_length), dtype=np.int32)
+        mask[:len(tokens)] = 1
+
+        pos1_in_index = min(self.max_length, pos1_in_index)
+        pos2_in_index = min(self.max_length, pos2_in_index)
+
+        return indexed_tokens, pos1_in_index - 1, pos2_in_index - 1, mask
 
     def __getraw__(self, item):
-        word, pos1, pos2, mask = self.tokenizer(item['tokens'], item['h'][2][0], item['t'][2][0])
+        word, pos1, pos2, mask = self.tokenize(item['tokens'], item['h'][2][0], item['t'][2][0])
         return word, pos1, pos2, mask
 
     def __additem__(self, d, word, pos1, pos2, mask):

@@ -171,59 +171,27 @@ def generate_wsd_episodes(dir, n_episodes, n_support_examples, n_query_examples,
     return episodes
 
 
-def fewrel_tokenize(raw_tokens, pos_head, pos_tail, max_length=128):
-    # token -> index
-    tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
-    tokens = ['[CLS]']
-    cur_pos = 0
-    pos1_in_index = 1
-    pos2_in_index = 1
-    for token in raw_tokens:
-        token = token.lower()
-        if cur_pos == pos_head[0]:
-            tokens.append('[unused0]')
-            pos1_in_index = len(tokens)
-        if cur_pos == pos_tail[0]:
-            tokens.append('[unused1]')
-            pos2_in_index = len(tokens)
-        tokens += tokenizer.tokenize(token)
-        if cur_pos == pos_head[-1]:
-            tokens.append('[unused2]')
-        if cur_pos == pos_tail[-1]:
-            tokens.append('[unused3]')
-        cur_pos += 1
-    indexed_tokens = tokenizer.convert_tokens_to_ids(tokens)
-
-    # padding
-    while len(indexed_tokens) < max_length:
-        indexed_tokens.append(0)
-    indexed_tokens = indexed_tokens[:max_length]
-
-    # mask
-    mask = np.zeros((max_length), dtype=np.int32)
-    mask[:len(tokens)] = 1
-
-    pos1_in_index = min(max_length, pos1_in_index)
-    pos2_in_index = min(max_length, pos2_in_index)
-
-    return indexed_tokens, pos1_in_index - 1, pos2_in_index - 1, mask
-
-
 def generate_fewrel_episodes(dir, name, N, K, Q, n_episodes, task):
     episodes = []
-    fewrel_dataset = FewRelDataset(name, fewrel_tokenize, N, K, Q, na_rate=0, root=dir)
-    data_loader = data.DataLoader(dataset=fewrel_dataset, batch_size=1, shuffle=False, collate_fn=prepare_task_batch)
-    data_loader = iter(data_loader)
-    for i in range(n_episodes):
-        support_set, query_set, labels = next(data_loader)[0]
-        support_subset = FewRelSubset(support_set, labels)
-        support_loader = data.DataLoader(support_subset, batch_size=N*K, collate_fn=collate_fewrel)
-        query_subset = FewRelSubset(query_set, labels)
-        query_loader = data.DataLoader(query_subset, batch_size=N*Q, collate_fn=collate_fewrel)
-        episode = Episode(support_loader=support_loader,
-                          query_loader=query_loader,
-                          base_task=task,
-                          task_id=task + '-' + str(i),
-                          n_classes=N)
-        episodes.append(episode)
+    tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+    fewrel_dataset = FewRelDataset(name, tokenizer, N, K, Q, na_rate=0, root=dir)
+    data_loader = data.DataLoader(dataset=fewrel_dataset, batch_size=16, shuffle=False, collate_fn=prepare_task_batch)
+    i = 0
+    for fewrel_batch in data_loader:
+        for (support_set, query_set, labels) in fewrel_batch:
+            support_subset = FewRelSubset(support_set, labels)
+            support_loader = data.DataLoader(support_subset, batch_size=N*K, collate_fn=collate_fewrel)
+            query_subset = FewRelSubset(query_set, labels)
+            query_loader = data.DataLoader(query_subset, batch_size=N*Q, collate_fn=collate_fewrel)
+            episode = Episode(support_loader=support_loader,
+                              query_loader=query_loader,
+                              base_task=task,
+                              task_id=task + '-' + str(i),
+                              n_classes=N)
+            episodes.append(episode)
+            i += 1
+            if len(episodes) == n_episodes:
+                break
+        if len(episodes) == n_episodes:
+            break
     return episodes
