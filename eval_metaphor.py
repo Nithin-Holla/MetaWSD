@@ -40,6 +40,8 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--config', dest='config_file', type=str, help='Configuration file', required=True)
     parser.add_argument('--n_support', type=int, help='Number of support examples', required=True)
+    parser.add_argument('--n_test_episodes', type=int, help='Number of test episodes to evaluate on', default=50)
+    parser.add_argument('--n_val_episodes', type=int, help='Number of val episodes to evaluate on', default=50)
     parser.add_argument('--trained_learner', type=str, help='Name of the trained model')
     parser.add_argument('--output_lr', type=float, help='Output learning rate')
     parser.add_argument('--learner_lr', type=float, help='Learner learning rate')
@@ -51,6 +53,8 @@ if __name__ == '__main__':
     config = load_config(args.config_file)
     config['learner_params']['num_outputs']['metaphor'] = 2
     config['num_shots']['metaphor'] = args.n_support
+    config['num_val_episodes']['metaphor'] = args.n_val_episodes
+    config['num_test_episodes']['metaphor'] = args.n_test_episodes
     if args.trained_learner is not None:
         config['trained_learner'] = args.trained_learner
     if args.output_lr is not None:
@@ -86,17 +90,19 @@ if __name__ == '__main__':
 
     # Generate episodes for metaphor
     logger.info('Generating episodes for metaphor')
-    metaphor_val_episode = utils.generate_metaphor_episode(train_dataset=metaphor_train_dataset,
-                                                           test_dataset=metaphor_val_dataset,
-                                                           n_support_examples=config['num_shots']['metaphor'],
-                                                           task='metaphor')
-    val_episodes.extend(metaphor_val_episode)
-    metaphor_test_episode = utils.generate_metaphor_episode(train_dataset=metaphor_train_dataset,
-                                                            test_dataset=metaphor_test_dataset,
-                                                            n_support_examples=config['num_shots']['metaphor'],
-                                                            task='metaphor')
-    test_episodes.extend(metaphor_test_episode)
-    logger.info('Finished generating {} episodes for metaphor'.format(len(metaphor_test_episode)))
+    metaphor_val_episodes = utils.generate_metaphor_episodes(train_dataset=metaphor_train_dataset,
+                                                             test_dataset=metaphor_val_dataset,
+                                                             n_support_examples=config['num_shots']['metaphor'],
+                                                             n_episodes=config['num_val_episodes']['metaphor'],
+                                                             task='metaphor')
+    val_episodes.extend(metaphor_val_episodes)
+    metaphor_test_episodes = utils.generate_metaphor_episodes(train_dataset=metaphor_train_dataset,
+                                                              test_dataset=metaphor_test_dataset,
+                                                              n_support_examples=config['num_shots']['metaphor'],
+                                                              n_episodes=config['num_test_episodes']['metaphor'],
+                                                              task='metaphor')
+    test_episodes.extend(metaphor_test_episodes)
+    logger.info('Finished generating episodes for metaphor')
 
     # Initialize meta learner
     if config['meta_learner'] == 'maml':

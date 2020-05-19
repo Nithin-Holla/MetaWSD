@@ -143,26 +143,31 @@ def generate_metaphor_cls_episodes(train_dataset, test_dataset, n_support_exampl
     return episodes
 
 
-def generate_metaphor_episode(train_dataset, test_dataset, n_support_examples, task, batch_size=32):
-    metaphor_idx, non_metaphor_idx = [], []
-    for idx, lbl in enumerate(train_dataset.labels):
-        if 0 in lbl and len(non_metaphor_idx) < n_support_examples // 2:
-            non_metaphor_idx.append(idx)
-        elif 1 in lbl and len(metaphor_idx) < n_support_examples // 2:
-            metaphor_idx.append(idx)
-        if len(non_metaphor_idx) == n_support_examples // 2 and len(metaphor_idx) == n_support_examples // 2:
-            break
+def generate_metaphor_episodes(train_dataset, test_dataset, n_support_examples, n_episodes, task, batch_size=32):
+    episodes = []
+    for i in range(n_episodes):
+        metaphor_idx, non_metaphor_idx = [], []
+        shuffled_ids = random.sample(range(len(train_dataset)), len(train_dataset))
+        for idx in shuffled_ids:
+            lbl = train_dataset.labels[idx]
+            if 0 in lbl and len(non_metaphor_idx) < n_support_examples // 2:
+                non_metaphor_idx.append(idx)
+            elif 1 in lbl and len(metaphor_idx) < n_support_examples // 2:
+                metaphor_idx.append(idx)
+            if len(non_metaphor_idx) == n_support_examples // 2 and len(metaphor_idx) == n_support_examples // 2:
+                break
 
-    sampled_idx = metaphor_idx + non_metaphor_idx
-    train_subset = data.Subset(train_dataset, sampled_idx)
-    support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
-    query_loader = data.DataLoader(test_dataset, batch_size=batch_size, collate_fn=prepare_batch)
-    episode = Episode(support_loader=support_loader,
-                      query_loader=query_loader,
-                      base_task=task,
-                      task_id=task,
-                      n_classes=train_dataset.n_classes)
-    return [episode]
+        sampled_idx = metaphor_idx + non_metaphor_idx
+        train_subset = data.Subset(train_dataset, sampled_idx)
+        support_loader = data.DataLoader(train_subset, batch_size=n_support_examples, collate_fn=prepare_batch)
+        query_loader = data.DataLoader(test_dataset, batch_size=batch_size, collate_fn=prepare_batch)
+        episode = Episode(support_loader=support_loader,
+                          query_loader=query_loader,
+                          base_task=task,
+                          task_id=task,
+                          n_classes=train_dataset.n_classes)
+        episodes.append(episode)
+    return episodes
 
 
 def generate_semcor_wsd_episodes(wsd_dataset, n_episodes, n_support_examples, n_query_examples, task):
