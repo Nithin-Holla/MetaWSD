@@ -99,7 +99,7 @@ class RelMetaModel(nn.Module):
                     self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
 
                     # Update the shared parameters
-                    diffopt.step(loss)
+                    diffopt.step(loss, retain_graph=True)
                     loss = loss.detach()
                     output = output.detach()
 
