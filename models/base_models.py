@@ -95,22 +95,21 @@ class ALBERTRelationModel(nn.Module):
 
     def __init__(self, model_params):
         nn.Module.__init__(self)
+        self.embed_dim = 2 * model_params.get('embed_dim', 768)
+        self.hidden_size = model_params['hidden_size']
+        self.dropout_ratio = model_params.get('dropout_ratio', 0)
         self.albert = AlbertModel.from_pretrained('albert-base-v2')
-        self.cat_entity_rep = model_params.get('cat_entity_rep', True)
-        self.embed_dim = model_params.get('embed_dim', 768)
-        if self.cat_entity_rep:
-            self.embed_dim *= 2
-            self.albert.pooler.weight.requires_grad = False
-            self.albert.pooler.bias.requires_grad = False
+        self.albert.pooler.weight.requires_grad = False
+        self.albert.pooler.bias.requires_grad = False
+        self.linear = nn.Sequential(nn.Linear(self.embed_dim, self.hidden_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(p=self.dropout_ratio))
 
     def forward(self, inputs):
-        if not self.cat_entity_rep:
-            _, x = self.albert(inputs['word'], attention_mask=inputs['mask'])
-            return x
-        else:
-            outputs = self.albert(inputs['word'], attention_mask=inputs['mask'])
-            tensor_range = torch.arange(inputs['word'].size()[0])
-            h_state = outputs[0][tensor_range, inputs['pos1']]
-            t_state = outputs[0][tensor_range, inputs['pos2']]
-            state = torch.cat((h_state, t_state), -1)
-            return state
+        outputs = self.albert(inputs['word'], attention_mask=inputs['mask'])
+        tensor_range = torch.arange(inputs['word'].size()[0])
+        h_state = outputs[0][tensor_range, inputs['pos1']]
+        t_state = outputs[0][tensor_range, inputs['pos2']]
+        state = torch.cat((h_state, t_state), -1)
+        out = self.linear(state)
+        return out

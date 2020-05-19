@@ -173,8 +173,8 @@ class RelMetaModel(nn.Module):
         return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
     def initialize_output_layer(self, n_classes):
-        stdv = 1.0 / math.sqrt(self.learner.embed_dim)
-        self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.embed_dim),
+        stdv = 1.0 / math.sqrt(self.learner.hidden_dim)
+        self.output_layer_weight = -2 * stdv * torch.rand((n_classes, self.learner.hidden_dim),
                                                           device=self.device) + stdv
         self.output_layer_bias = -2 * stdv * torch.rand(n_classes, device=self.device) + stdv
         self.output_layer_weight.requires_grad = True
