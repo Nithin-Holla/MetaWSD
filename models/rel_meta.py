@@ -170,10 +170,7 @@ class RelMetaModel(nn.Module):
                 if param.requires_grad:
                     param.grad /= len(query_accuracies)
 
-        if testing:
-            return support_losses, query_accuracies, query_precisions, query_recalls, query_f1s
-        else:
-            return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
+        return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
 
     def initialize_output_layer(self, n_classes):
         stdv = 1.0 / math.sqrt(self.learner.embed_dim)
