@@ -73,7 +73,7 @@ class RelMetaModel(nn.Module):
             if self.proto_maml:
                 support_repr, support_label = [], []
                 for batch_x, batch_y in episode.support_loader:
-                    self.move_to_device(batch_x, batch_y)
+                    batch_x, batch_y = self.move_to_device(batch_x, batch_y)
                     output_repr = self.learner(batch_x)
                     support_repr.append(output_repr)
                     support_label.append(batch_y)
