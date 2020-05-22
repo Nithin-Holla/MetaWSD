@@ -171,18 +171,18 @@ def generate_wsd_episodes(dir, n_episodes, n_support_examples, n_query_examples,
     return episodes
 
 
-def generate_fewrel_episodes(dir, name, N, K, Q, n_episodes, task):
+def generate_fewrel_episodes(dir, name, N, K, Q, n_episodes, task, batch_size=5):
     episodes = []
     tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
-    fewrel_dataset = FewRelDataset(name, tokenizer, N, K, Q, na_rate=0, root=dir)
+    fewrel_dataset = FewRelDataset(name, tokenizer, N, K, Q, root=dir)
     data_loader = data.DataLoader(dataset=fewrel_dataset, batch_size=16, shuffle=False, collate_fn=prepare_task_batch)
     i = 0
     for fewrel_batch in data_loader:
-        for (support_set, query_set, labels) in fewrel_batch:
-            support_subset = FewRelSubset(support_set, labels)
-            support_loader = data.DataLoader(support_subset, batch_size=N*K, collate_fn=collate_fewrel)
-            query_subset = FewRelSubset(query_set, labels)
-            query_loader = data.DataLoader(query_subset, batch_size=N*Q, collate_fn=collate_fewrel)
+        for (support_set, support_labels, query_set, query_labels) in fewrel_batch:
+            support_subset = FewRelSubset(support_set, support_labels)
+            support_loader = data.DataLoader(support_subset, batch_size=batch_size, collate_fn=collate_fewrel)
+            query_subset = FewRelSubset(query_set, query_labels)
+            query_loader = data.DataLoader(query_subset, batch_size=batch_size, collate_fn=collate_fewrel)
             episode = Episode(support_loader=support_loader,
                               query_loader=query_loader,
                               base_task=task,

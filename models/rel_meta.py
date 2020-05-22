@@ -70,12 +70,14 @@ class RelMetaModel(nn.Module):
 
             self.initialize_output_layer(episode.n_classes)
 
-            batch_x, batch_y = next(iter(episode.support_loader))
-            batch_x, batch_y = self.move_to_device(batch_x, batch_y)
-
             if self.proto_maml:
-                output_repr = self.learner(batch_x)
-                init_weights, init_bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
+                support_repr, support_label = [], []
+                for batch_x, batch_y in episode.support_loader:
+                    self.move_to_device(batch_x, batch_y)
+                    output_repr = self.learner(batch_x)
+                    support_repr.append(output_repr)
+                    support_label.append(batch_y)
+                init_weights, init_bias = self._initialize_with_proto_weights(support_repr, support_label, episode.n_classes)
             else:
                 init_weights, init_bias = 0, 0
 
@@ -89,19 +91,21 @@ class RelMetaModel(nn.Module):
                 flearner.zero_grad()
 
                 for i in range(updates):
-                    output = flearner(batch_x)
-                    output = self.output_layer(output, init_weights, init_bias)
-                    loss = self.learner_loss[episode.base_task](output, batch_y)
+                    for batch_x, batch_y in episode.support_loader:
+                        batch_x, batch_y = self.move_to_device(batch_x, batch_y)
+                        output = flearner(batch_x)
+                        output = self.output_layer(output, init_weights, init_bias)
+                        loss = self.learner_loss[episode.base_task](output, batch_y)
 
-                    # Update the output layer parameters
-                    output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
-                    self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
-                    self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
+                        # Update the output layer parameters
+                        output_weight_grad, output_bias_grad = torch.autograd.grad(loss, [self.output_layer_weight, self.output_layer_bias], retain_graph=True)
+                        self.output_layer_weight = self.output_layer_weight - self.output_lr * output_weight_grad
+                        self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
 
-                    # Update the shared parameters
-                    diffopt.step(loss, retain_graph=True)
-                    loss = loss.detach()
-                    output = output.detach()
+                        # Update the shared parameters
+                        diffopt.step(loss, retain_graph=True)
+                        loss = loss.detach()
+                        output = output.detach()
 
                 relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
                 pred = make_prediction(output[relevant_indices].detach()).cpu()
@@ -191,9 +195,9 @@ class RelMetaModel(nn.Module):
         return weight, bias
 
     def _build_prototypes(self, data_repr, data_label, num_outputs):
-        n_dim = data_repr.shape[1]
-        data_repr = data_repr.view(-1, n_dim)
-        data_label = data_label.view(-1)
+        n_dim = data_repr[0].shape[1]
+        data_repr = torch.cat(tuple([x.view(-1, n_dim) for x in data_repr]), dim=0)
+        data_label = torch.cat(tuple([y.view(-1) for y in data_label]), dim=0)
 
         prototypes = torch.zeros((num_outputs, n_dim), device=self.device)
 
