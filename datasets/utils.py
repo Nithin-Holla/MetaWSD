@@ -175,7 +175,7 @@ def generate_fewrel_episodes(dir, name, N, K, Q, n_episodes, task):
     episodes = []
     tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
     fewrel_dataset = FewRelDataset(name, tokenizer, N, K, Q, root=dir)
-    data_loader = data.DataLoader(dataset=fewrel_dataset, batch_size=16, shuffle=False, collate_fn=prepare_task_batch)
+    data_loader = data.DataLoader(dataset=fewrel_dataset, batch_size=16, shuffle=True, collate_fn=prepare_task_batch)
     i = 0
     for fewrel_batch in data_loader:
         for (support_set, support_labels, query_set, query_labels) in fewrel_batch:
