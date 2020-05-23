@@ -35,6 +35,7 @@ if __name__ == '__main__':
     # Parse arguments
     parser = ArgumentParser()
     parser.add_argument('--config', dest='config_file', type=str, help='Configuration file', required=True)
+    parser.add_argument('--pubmed', action='store_true', help='Uses PubMed data for validation')
     args = parser.parse_args()
 
     # Load configuration
@@ -51,10 +52,10 @@ if __name__ == '__main__':
     # Directory for saving models
     os.makedirs(os.path.join(config['base_path'], 'saved_models'), exist_ok=True)
 
-    # Path for WSD dataset
+    # Path for FewRel dataset
     fewrel_base_path = os.path.join(config['base_path'], '../data/FewRel/')
 
-    # Generate episodes for WSD
+    # Generate episodes for FewRel
     logger.info('Generating episodes from FewRel')
     fewrel_train_episodes = utils.generate_fewrel_episodes(dir=fewrel_base_path,
                                                            name='train_wiki',
@@ -63,8 +64,14 @@ if __name__ == '__main__':
                                                            Q=config['num_shots']['rel'],
                                                            n_episodes=config['num_train_episodes']['rel'],
                                                            task='rel')
+    if args.pubmed:
+        val_file_name = 'val_pubmed'
+        logger.info('Using PubMed data as validation set')
+    else:
+        val_file_name = 'val_wiki'
+        logger.info('Using standard validation set')
     fewrel_val_episodes = utils.generate_fewrel_episodes(dir=fewrel_base_path,
-                                                         name='val_wiki',
+                                                         name=val_file_name,
                                                          N=config['learner_params']['num_outputs']['rel'],
                                                          K=config['num_shots']['rel'],
                                                          Q=config['num_shots']['rel'],

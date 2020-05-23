@@ -74,8 +74,9 @@ class RelMetaModel(nn.Module):
             batch_x, batch_y = self.move_to_device(batch_x, batch_y)
 
             if self.proto_maml:
-                output_repr = self.learner(batch_x)
-                init_weights, init_bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
+                with torch.autograd.set_grad_enabled(not testing):
+                    output_repr = self.learner(batch_x)
+                    init_weights, init_bias = self._initialize_with_proto_weights(output_repr, batch_y, episode.n_classes)
             else:
                 init_weights, init_bias = 0, 0
 
