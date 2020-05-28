@@ -21,7 +21,7 @@ num_test_samples:
 num_train_episodes:
   rel: 30000
 num_val_episodes:
-  rel: 10000
+  rel: 1000
 num_test_episodes:
   rel: 10
 num_meta_epochs: 25

@@ -6,7 +6,7 @@ learner_model: albert
 learner_params:
   hidden_size: 192
   num_outputs:
-    rel: 5
+    rel: 10
   embed_dim: 768
   dropout_ratio: 0
 output_lr: 0.001

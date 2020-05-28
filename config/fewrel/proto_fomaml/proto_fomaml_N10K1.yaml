@@ -6,7 +6,7 @@ learner_model: albert
 learner_params:
   hidden_size: 192
   num_outputs:
-    rel: 5
+    rel: 10
   embed_dim: 768
   dropout_ratio: 0
 output_lr: 0.001
@@ -14,10 +14,10 @@ learner_lr: 0.001
 meta_lr: 0.00005
 meta_batch_size: 16
 num_shots:
-  rel: 5
+  rel: 1
 num_updates: 3
 num_test_samples:
-  rel: 5
+  rel: 1
 num_train_episodes:
   rel: 30000
 num_val_episodes:
