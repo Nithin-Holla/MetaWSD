@@ -1,5 +1,6 @@
 import json
 import random
+from argparse import ArgumentParser
 from collections import Counter, defaultdict
 import itertools
 import os
@@ -210,15 +211,21 @@ def create_multi_wsd_data(semcor_wsd_dataset, n_support_examples, n_query_exampl
 
 
 if __name__ == '__main__':
+
+    parser = ArgumentParser()
+    parser.add_argument('--n_support_examples', type=int, help='Number of support examples', required=True)
+    parser.add_argument('--n_query_examples', type=int, help='Number of query examples', required=True)
+    parser.add_argument('--n_train_episodes', type=int, help='Number of training episodes', default=10000)
+    args = parser.parse_args()
+
     random.seed(42)
 
-    n_support_examples = 4
-    n_query_examples = 4
+    n_support_examples = args.n_support_examples
+    n_query_examples = args.n_query_examples
+    n_train_episodes = args.n_train_episodes
+
     n_val_words = 166
     n_test_words = 270
-    n_train_episodes = 50000
-    # n_val_episodes = 2000
-    # n_test_episodes = 2000
 
     # Path for WSD dataset
     base_path = os.path.dirname(os.path.abspath(__file__))
