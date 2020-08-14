@@ -47,10 +47,7 @@ class SeqBaselineModel(nn.Module):
 
         self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
-            if task == 'metaphor':
-                self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
-            else:
-                self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
+            self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
 
         self.output_layer = None
 
@@ -114,12 +111,8 @@ class SeqBaselineModel(nn.Module):
 
             support_loss = loss.item()
 
-            if episode.base_task != 'metaphor':
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=False)
-            else:
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=True)
+            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                            all_labels, binary=False)
 
             logger.info('Episode {}/{}, task {} [support_set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                         'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
@@ -154,12 +147,8 @@ class SeqBaselineModel(nn.Module):
 
             query_loss /= n_batch + 1
 
-            if episode.base_task != 'metaphor':
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=False)
-            else:
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=True)
+            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                            all_labels, binary=False)
 
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                         'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
