@@ -32,8 +32,7 @@ class MAML:
         self.stopping_threshold = config.get('stopping_threshold', 1e-3)
         self.meta_batch_size = config.get('meta_batch_size', 16)
         self.fomaml = config.get('fomaml', False)
-        self.multi_gpu = torch.cuda.device_count() > 1 if 'cuda' in config.get('device', 'cpu') else False
-
+        self.multi_gpu = torch.cuda.device_count() > 1 and config.get('multi_gpu', False)
         if self.multi_gpu:
             self.n_devices = torch.cuda.device_count()
             logger.info('Using {} GPUs'.format(self.n_devices))
