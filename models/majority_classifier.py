@@ -9,9 +9,7 @@ import numpy as np
 
 
 logger = logging.getLogger('MajorityClassifier Log')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class MajorityClassifier:

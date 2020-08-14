@@ -13,13 +13,10 @@ from transformers import BertTokenizer, AdamW, get_constant_schedule_with_warmup
 
 from models import utils
 from models.base_models import RNNSequenceModel, MLPModel, BERTSequenceModel
-from models.loss import BCEWithLogitsLossAndIgnoreIndex
 from models.utils import make_prediction
 
 logger = logging.getLogger('Log')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class SeqPrototypicalNetwork(nn.Module):

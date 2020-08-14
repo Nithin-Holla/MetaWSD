@@ -18,9 +18,7 @@ from models.proto_network import PrototypicalNetwork
 
 
 logger = logging.getLogger('MetaLearningLog')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 warnings.filterwarnings("ignore", category=UserWarning)
 

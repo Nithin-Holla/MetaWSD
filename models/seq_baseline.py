@@ -12,13 +12,10 @@ import logging
 import os
 import torch
 
-from models.loss import BCEWithLogitsLossAndIgnoreIndex
 from models.utils import make_prediction
 
 logger = logging.getLogger('Log')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class SeqBaselineModel(nn.Module):

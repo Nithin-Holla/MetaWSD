@@ -181,30 +181,8 @@ def create_multi_wsd_data(semcor_wsd_dataset, n_support_examples, n_query_exampl
     write_multi_wsd_set(n_train_episodes, train_words, word_splits, support_samples_per_word, query_samples_per_word,
                         support_factor, train_path)
 
-    # # Filter out seen sentences from the meta-val data
-    # train_sentences = itertools.chain(*[word_splits[w]['sentences'] for w in train_words])
-    # for word in val_words:
-    #     sentences, labels = [], []
-    #     for sent, lbl in zip(word_splits[word]['sentences'], word_splits[word]['labels']):
-    #         if sent not in train_sentences:
-    #             sentences.append(sent)
-    #             labels.append(lbl)
-    #     word_splits[word]['sentences'] = sentences
-    #     word_splits[word]['labels'] = labels
-
     # Create and write the multi-word val WSD data into disk
     write_single_wsd_set(val_words, word_splits, n_support_examples, n_query_examples, val_path)
-
-    # # Filter out seen sentences from the meta-test data
-    # val_sentences = itertools.chain(*[word_splits[w]['sentences'] for w in val_words])
-    # for word in test_words:
-    #     sentences, labels = [], []
-    #     for sent, lbl in zip(word_splits[word]['sentences'], word_splits[word]['labels']):
-    #         if sent not in train_sentences and sent not in val_sentences:
-    #             sentences.append(sent)
-    #             labels.append(lbl)
-    #     word_splits[word]['sentences'] = sentences
-    #     word_splits[word]['labels'] = labels
 
     # Create and write the multi-word test WSD data into disk
     write_single_wsd_set(test_words, word_splits, n_support_examples, n_query_examples, test_path)
@@ -223,9 +201,6 @@ if __name__ == '__main__':
     n_support_examples = args.n_support_examples
     n_query_examples = args.n_query_examples
     n_train_episodes = args.n_train_episodes
-
-    n_val_words = 166
-    n_test_words = 270
 
     # Path for WSD dataset
     base_path = os.path.dirname(os.path.abspath(__file__))
@@ -248,18 +223,3 @@ if __name__ == '__main__':
 
     create_multi_wsd_data(semcor_wsd_dataset, n_support_examples, n_query_examples, n_train_episodes, train_path, val_path, test_path)
 
-    # Label statistics
-    # wsd_val_episodes = utils.generate_wsd_episodes(dir=val_path,
-    #                                                n_episodes=n_val_words,
-    #                                                n_support_examples=n_support_examples,
-    #                                                n_query_examples=n_query_examples,
-    #                                                task='wsd',
-    #                                                meta_train=False)
-    # wsd_test_episodes = utils.generate_wsd_episodes(dir=test_path,
-    #                                                 n_episodes=n_test_words,
-    #                                                 n_support_examples=n_support_examples,
-    #                                                 n_query_examples=n_query_examples,
-    #                                                 task='wsd',
-    #                                                 meta_train=False)
-    # generate_label_statistics(wsd_val_episodes, 'meta_val_stat.json')
-    # generate_label_statistics(wsd_test_episodes, 'meta_test_stat.json')

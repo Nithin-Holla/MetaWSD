@@ -16,9 +16,7 @@ from models.base_models import BERTSequenceModel
 from models.seq_meta import SeqMetaModel
 
 logger = logging.getLogger('MAML Log')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 tensorboard_writer = SummaryWriter(log_dir='runs/MAML')
 
 
@@ -32,7 +30,7 @@ class MAML:
         self.meta_lr = config.get('meta_lr', 1e-3)
         self.meta_weight_decay = config.get('meta_weight_decay', 0.0)
         self.stopping_threshold = config.get('stopping_threshold', 1e-3)
-        self.meta_batch_size = config.get('meta_batch_size', 100)
+        self.meta_batch_size = config.get('meta_batch_size', 16)
         self.fomaml = config.get('fomaml', False)
         self.multi_gpu = torch.cuda.device_count() > 1 if 'cuda' in config.get('device', 'cpu') else False
 
