@@ -21,7 +21,9 @@ This is the official code for the paper [Learning to Learn to Disambiguate: Meta
 
 ## Training the models
 
-The YAML configuration files for all the models are in `config/wsd`. To train a model, run `python MetaWSD/train_wsd.py --config CONFIG_FILE`. For using the non-episodic baseline, switch to the `baseline` branch. For all the other models, use the code in the `master` branch. Training on multiple GPUs is supported for the MAML variants only. In order to use multiple GPUs, specify the flag `--multi_gpu`.
+- The YAML configuration files for all the models are in `config/wsd`. To train a model, run `python MetaWSD/train_wsd.py --config CONFIG_FILE`.
+- For using the non-episodic baseline, switch to the `baseline` branch. For all the other models, use the code in the `master` branch.
+- Training on multiple GPUs is supported for the MAML variants only. In order to use multiple GPUs, specify the flag `--multi_gpu`.
 
 
 ## Troubleshooting
