@@ -28,7 +28,7 @@ This is the official code for the paper [Learning to Learn to Disambiguate: Meta
 
 ## Troubleshooting
 
-If you have a `RuntimeError` with Proto(FO)MAML and BERT, you can install the `higher` library from this fork: [https://github.com/Nithin-Holla/higher](https://github.com/Nithin-Holla/higher), which has a temporary fix for this.
+If you have a `RuntimeError` with Proto(FO)MAML and BERT, you can install the `higher` library from this fork: [https://github.com/Nithin-Holla/higher](https://github.com/Nithin-Holla/higher), which has a temporary fix for this. Also, replace `diffopt.step(loss)` with `diffopt.step(loss, retain_graph=True)` in `models/seq_meta.py`.
 
 
 ## Citation
