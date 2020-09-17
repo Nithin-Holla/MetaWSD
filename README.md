@@ -21,5 +21,18 @@ This is the official code for the paper [Learning to Learn to Disambiguate: Meta
 
 ## Training the models
 
-The YAML configuration files for all the models are in `config/wsd`. To train a model, run `python MetaWSD/train_wsd.py --config CONFIG_FILE`. 
+The YAML configuration files for all the models are in `config/wsd`. To train a model, run `python MetaWSD/train_wsd.py --config CONFIG_FILE`.
 Training on multiple GPUs is supported for the MAML variants only. In order to use multiple GPUs, specify the flag `--multi_gpu`.
+
+
+## Citation
+
+If you use this code repository, please consider citing the paper:
+```bib
+@article{holla2020metawsd,
+  title={Learning to Learn to Disambiguate: Meta-Learning for Few-Shot Word Sense Disambiguation.},
+  author={Holla, Nithin and Mishra, Pushkar and Yannakoudakis, Helen and Shutova, Ekaterina},
+  journal={arXiv preprint arXiv:2004.14355},
+  year={2020}
+}
+```
