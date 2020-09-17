@@ -13,13 +13,10 @@ import logging
 import os
 import torch
 
-from models.loss import BCEWithLogitsLossAndIgnoreIndex
 from models.utils import make_prediction
 
 logger = logging.getLogger('Log')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class SeqBaselineModel(nn.Module):
@@ -53,10 +50,9 @@ class SeqBaselineModel(nn.Module):
 
         self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
-            if task == 'metaphor':
-                self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
-            else:
-                self.learner_loss[task] = nn.NLLLoss(ignore_index=-1)
+            self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
+
+        self.output_layer = None
 
         if config.get('trained_baseline', None):
             self.learner.load_state_dict(torch.load(
@@ -158,12 +154,8 @@ class SeqBaselineModel(nn.Module):
 
             support_loss = loss.item()
 
-            if episode.base_task != 'metaphor':
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=False)
-            else:
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=True)
+            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                            all_labels, binary=False)
 
             logger.info('Episode {}/{}, task {} [support_set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                         'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
@@ -199,12 +191,8 @@ class SeqBaselineModel(nn.Module):
 
             query_loss /= n_batch + 1
 
-            if episode.base_task != 'metaphor':
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=False)
-            else:
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=True)
+            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                            all_labels, binary=False)
 
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                         'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
@@ -221,9 +209,3 @@ class SeqBaselineModel(nn.Module):
             return support_losses, query_accuracies, query_precisions, query_recalls, query_f1s
         else:
             return query_losses, query_accuracies, query_precisions, query_recalls, query_f1s
-
-    # def initialize_output_layer(self, n_classes):
-    #     if isinstance(self.learner, RNNSequenceModel):
-    #         self.output_layer = nn.Linear(self.learner.hidden_size // 4, n_classes).to(self.device)
-    #     elif isinstance(self.learner, MLPModel):
-    #         self.output_layer = nn.Linear(self.learner.hidden_size, n_classes).to(self.device)

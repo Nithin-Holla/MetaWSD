@@ -10,9 +10,7 @@ import numpy as np
 from transformers import BertTokenizer, BertModel
 
 logger = logging.getLogger('NearestNeighbor Log')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class NearestNeighborClassifier():
