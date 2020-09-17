@@ -26,12 +26,6 @@ def make_prediction(output):
     return pred
 
 
-# def subset_softmax(output, unique_labels):
-#     new_output = torch.full_like(output, -45)
-#     new_output[:, unique_labels] = F.log_softmax(output[:, unique_labels], dim=1)
-#     return new_output
-
-
 def replicate_model_to_gpus(model, device_ids):
     replica_models = [model] + [copy.deepcopy(model).to(device) for device in device_ids[1:]]
     for rm in replica_models[1:]:

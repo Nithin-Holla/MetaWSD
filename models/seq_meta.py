@@ -17,13 +17,10 @@ import logging
 import os
 import torch
 
-from models.loss import BCEWithLogitsLossAndIgnoreIndex
 from models.utils import make_prediction
 
 logger = logging.getLogger('Log')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class SeqMetaModel(nn.Module):
@@ -57,10 +54,7 @@ class SeqMetaModel(nn.Module):
 
         self.learner_loss = {}
         for task in config['learner_params']['num_outputs']:
-            if task == 'metaphor':
-                self.learner_loss[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
-            else:
-                self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
+            self.learner_loss[task] = nn.CrossEntropyLoss(ignore_index=-1)
 
         self.output_layer_weight = None
         self.output_layer_bias = None
@@ -146,7 +140,7 @@ class SeqMetaModel(nn.Module):
                     self.output_layer_bias = self.output_layer_bias - self.output_lr * output_bias_grad
 
                     # Update the shared parameters
-                    diffopt.step(loss, retain_graph=True)
+                    diffopt.step(loss)
 
                 relevant_indices = torch.nonzero(batch_y != -1).view(-1).detach()
                 pred = make_prediction(output[relevant_indices].detach()).cpu()
@@ -155,12 +149,8 @@ class SeqMetaModel(nn.Module):
 
                 support_loss = loss.item()
 
-                if episode.base_task != 'metaphor':
-                    accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                    all_labels, binary=False)
-                else:
-                    accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                    all_labels, binary=True)
+                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                                all_labels, binary=False)
 
                 logger.info('Episode {}/{}, task {} [support_set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                             'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
@@ -199,12 +189,8 @@ class SeqMetaModel(nn.Module):
 
                 query_loss /= n_batch + 1
 
-            if episode.base_task != 'metaphor':
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=False)
-            else:
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=True)
+            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                            all_labels, binary=False)
 
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                         'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,

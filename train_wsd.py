@@ -18,9 +18,7 @@ from models.proto_network import PrototypicalNetwork
 
 
 logger = logging.getLogger('MetaLearningLog')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -38,10 +36,12 @@ if __name__ == '__main__':
     # Parse arguments
     parser = ArgumentParser()
     parser.add_argument('--config', dest='config_file', type=str, help='Configuration file', required=True)
+    parser.add_argument('--multi_gpu', action='store_true')
     args = parser.parse_args()
 
     # Load configuration
     config = load_config(args.config_file)
+    config['multi_gpu'] = args.multi_gpu
     logger.info('Using configuration: {}'.format(config))
 
     # Set seeds for reproducibility

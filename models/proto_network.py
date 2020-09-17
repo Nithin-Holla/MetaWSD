@@ -8,9 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 from models.seq_proto import SeqPrototypicalNetwork
 
 logger = logging.getLogger('ProtoLearningLog')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 tensorboard_writer = SummaryWriter(log_dir='runs/ProtoNet')
 
 

@@ -13,13 +13,10 @@ from transformers import BertTokenizer, AdamW, get_constant_schedule_with_warmup
 
 from models import utils
 from models.base_models import RNNSequenceModel, MLPModel, BERTSequenceModel
-from models.loss import BCEWithLogitsLossAndIgnoreIndex
 from models.utils import make_prediction
 
 logger = logging.getLogger('Log')
-coloredlogs.install(logger=logger, level='DEBUG',
-                    fmt='%(asctime)s - %(name)s - %(levelname)s'
-                        ' - %(message)s')
+coloredlogs.install(logger=logger, level='DEBUG', fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 class SeqPrototypicalNetwork(nn.Module):
@@ -53,10 +50,7 @@ class SeqPrototypicalNetwork(nn.Module):
 
         self.loss_fn = {}
         for task in config['learner_params']['num_outputs']:
-            if task == 'metaphor':
-                self.loss_fn[task] = BCEWithLogitsLossAndIgnoreIndex(ignore_index=-1)
-            else:
-                self.loss_fn[task] = nn.CrossEntropyLoss(ignore_index=-1)
+            self.loss_fn[task] = nn.CrossEntropyLoss(ignore_index=-1)
 
         if config.get('trained_learner', False):
             self.learner.load_state_dict(torch.load(
@@ -153,12 +147,8 @@ class SeqPrototypicalNetwork(nn.Module):
             query_loss /= n_batch + 1
 
             # Calculate metrics
-            if episode.base_task != 'metaphor':
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=False)
-            else:
-                accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
-                                                                                all_labels, binary=True)
+            accuracy, precision, recall, f1_score = utils.calculate_metrics(all_predictions,
+                                                                            all_labels, binary=False)
 
             logger.info('Episode {}/{}, task {} [query set]: Loss = {:.5f}, accuracy = {:.5f}, precision = {:.5f}, '
                         'recall = {:.5f}, F1 score = {:.5f}'.format(episode_id + 1, n_episodes, episode.task_id,
