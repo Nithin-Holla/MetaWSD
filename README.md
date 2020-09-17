@@ -25,6 +25,11 @@ The YAML configuration files for all the models are in `config/wsd`. To train a 
 Training on multiple GPUs is supported for the MAML variants only. In order to use multiple GPUs, specify the flag `--multi_gpu`.
 
 
+## Troubleshooting
+
+If you have a `RuntimeError` with Proto(FO)MAML and BERT, you can install the `higher` library from this fork: `https://github.com/Nithin-Holla/higher` which has a temporary fix for this.
+
+
 ## Citation
 
 If you use this code repository, please consider citing the paper:
