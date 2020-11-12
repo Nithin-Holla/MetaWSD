@@ -1,6 +1,6 @@
 # MetaWSD
 
-This is the official code for the paper [Learning to Learn to Disambiguate: Meta-Learning for Few-Shot Word Sense Disambiguation](https://arxiv.org/abs/2004.14355).
+This is the official code for the paper [Learning to Learn to Disambiguate: Meta-Learning for Few-Shot Word Sense Disambiguation](https://arxiv.org/abs/2004.14355), published at Findings of EMNLP.
 
 
 ## Getting started
@@ -35,10 +35,15 @@ If you have a `RuntimeError` with Proto(FO)MAML and BERT, you can install the `h
 
 If you use this code repository, please consider citing the paper:
 ```bib
-@article{holla2020metawsd,
-  title={Learning to Learn to Disambiguate: Meta-Learning for Few-Shot Word Sense Disambiguation.},
-  author={Holla, Nithin and Mishra, Pushkar and Yannakoudakis, Helen and Shutova, Ekaterina},
-  journal={arXiv preprint arXiv:2004.14355},
-  year={2020}
+@inproceedings{holla-etal-2020-learning,
+    title = "Learning to Learn to Disambiguate: Meta-Learning for Few-Shot Word Sense Disambiguation",
+    author = "Holla, Nithin and Mishra, Pushkar and Yannakoudakis, Helen and Shutova, Ekaterina",
+    booktitle = "Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: Findings",
+    month = nov,
+    year = "2020",
+    address = "Online",
+    publisher = "Association for Computational Linguistics",
+    url = "https://www.aclweb.org/anthology/2020.findings-emnlp.405",
+    pages = "4517--4533"
 }
 ```
